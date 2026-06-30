@@ -1,0 +1,5 @@
+# Vercel deployment linking (project/org IDs — not needed in the repo)
+.vercel
+
+# macOS
+.DS_Store

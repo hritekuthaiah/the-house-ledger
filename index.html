@@ -1,0 +1,1693 @@
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>The House Ledger — Poker Night Accounting</title>
+<meta name="description" content="Track buy-ins, top-ups and chip cash-outs for your poker night, then settle up with the fewest payments. Live-synced across phones with a shared table code." />
+<meta name="theme-color" content="#0a3d2e" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a3d2e'/%3E%3Ctext x='16' y='23' font-size='20' text-anchor='middle' fill='%23d8b65a'%3E%E2%99%A0%3C/text%3E%3C/svg%3E" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Jost:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+<!-- ============================================================= -->
+<!--  SUPABASE CONFIG                                               -->
+<!--  Paste the two values from your Supabase project here.        -->
+<!--  Settings ▸ API ▸ "Project URL" and "anon / public" key.      -->
+<!--  Until you do, the app runs in LOCAL DEMO mode (this device   -->
+<!--  only, no cross-phone sync).                                  -->
+<!-- ============================================================= -->
+<script>
+  window.POKER_CONFIG = {
+    SUPABASE_URL:      "https://vxlokpgiufhihdlysjlo.supabase.co",  // your project URL
+    SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4bG9rcGdpdWZoaWhkbHlzamxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1MzAwMDIsImV4cCI6MjA5ODEwNjAwMn0.Lo5UFOfHul7H0raxF3qpIpNhDwKgYASmVKNp6KN4-p4"  // the long "anon public" key
+  };
+</script>
+
+<style>
+:root{
+  --felt-1:#0b4233;
+  --felt-2:#083127;
+  --felt-3:#05201a;
+  --ink:#241c12;
+  --ink-soft:#5a4f3d;
+  --parchment:#f3ead2;
+  --parchment-2:#ece0c0;
+  --parchment-line:#d8c89c;
+  --gold:#d8b65a;
+  --gold-deep:#b18a34;
+  --gold-soft:#e7cd86;
+  --red:#b23a48;
+  --red-deep:#8e2935;
+  --win:#1f8a5b;
+  --win-bright:#3fbf85;
+  --loss:#c2453f;
+  --shadow:0 22px 50px -22px rgba(0,0,0,.75);
+  --hair:rgba(216,182,90,.32);
+  --r:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:'Jost',system-ui,sans-serif;
+  color:var(--parchment);
+  background:
+    radial-gradient(120% 90% at 50% -10%, #12614a 0%, var(--felt-1) 32%, var(--felt-2) 64%, var(--felt-3) 100%);
+  background-attachment:fixed;
+  min-height:100vh;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+/* felt grain + vignette */
+body::before{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E");
+  mix-blend-mode:overlay;
+}
+body::after{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  box-shadow:inset 0 0 240px 40px rgba(0,0,0,.55);
+}
+.wrap{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:26px 18px 120px}
+
+/* ---------- type ---------- */
+h1,h2,h3{font-family:'Cinzel',serif;font-weight:600;letter-spacing:.04em;margin:0}
+.mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+.eyebrow{font-size:.7rem;letter-spacing:.42em;text-transform:uppercase;color:var(--gold);font-weight:500}
+
+/* ---------- masthead ---------- */
+.mast{text-align:center;padding:18px 0 26px;position:relative}
+.mast .suits{display:flex;gap:18px;justify-content:center;font-size:1.05rem;color:var(--gold);opacity:.85;margin-bottom:12px;letter-spacing:.1em}
+.mast .suits .r{color:var(--red)}
+.mast h1{
+  font-size:clamp(2.1rem,7vw,3.6rem);line-height:.96;color:var(--parchment);
+  text-shadow:0 2px 0 rgba(0,0,0,.35), 0 0 30px rgba(216,182,90,.12);
+}
+.mast h1 .amp{color:var(--gold);font-style:italic;font-weight:500}
+.mast .tag{margin-top:12px;font-size:.84rem;letter-spacing:.32em;text-transform:uppercase;color:rgba(243,234,210,.62)}
+.rule{height:1px;width:min(420px,80%);margin:18px auto 0;background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:.5}
+
+/* ---------- cards / panels ---------- */
+.panel{
+  position:relative;background:linear-gradient(180deg,var(--parchment),var(--parchment-2));
+  color:var(--ink);border-radius:var(--r);padding:22px;box-shadow:var(--shadow);
+  border:1px solid rgba(110,80,30,.25);
+}
+.panel::before{
+  content:"";position:absolute;inset:7px;border:1px solid rgba(177,138,52,.4);border-radius:8px;pointer-events:none;
+}
+.panel-felt{
+  background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(0,0,0,.12));
+  color:var(--parchment);border:1px solid var(--hair);box-shadow:var(--shadow);
+  border-radius:var(--r);padding:22px;
+}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:680px){.grid2{grid-template-columns:1fr}}
+
+/* ---------- buttons / inputs ---------- */
+.btn{
+  font-family:'Jost',sans-serif;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:.78rem;
+  border:none;border-radius:10px;padding:13px 18px;cursor:pointer;display:inline-flex;align-items:center;
+  justify-content:center;gap:8px;transition:transform .12s ease, box-shadow .2s ease, background .2s ease;
+  color:var(--felt-3);background:linear-gradient(180deg,var(--gold-soft),var(--gold));
+  box-shadow:0 6px 16px -8px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.4);
+}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn.block{width:100%}
+.btn.ghost{background:transparent;color:var(--gold);border:1px solid var(--hair);box-shadow:none}
+.btn.ghost:hover{background:rgba(216,182,90,.1)}
+.btn.dark{background:linear-gradient(180deg,#1a4f3e,#0e3a2c);color:var(--gold-soft);border:1px solid var(--hair);box-shadow:none}
+.btn.danger{background:transparent;color:var(--red);border:1px solid rgba(178,58,72,.5);box-shadow:none}
+.btn.danger:hover{background:rgba(178,58,72,.12)}
+.btn.sm{padding:8px 12px;font-size:.68rem;border-radius:8px}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+
+input,select{
+  font-family:'Jost',sans-serif;font-size:1rem;color:var(--ink);
+  background:rgba(255,255,255,.7);border:1px solid var(--parchment-line);border-radius:10px;
+  padding:12px 14px;width:100%;outline:none;transition:border .2s,box-shadow .2s;
+}
+input:focus,select:focus{border-color:var(--gold-deep);box-shadow:0 0 0 3px rgba(216,182,90,.25)}
+input.amt{font-family:'JetBrains Mono',monospace;font-weight:500}
+.field-label{font-size:.7rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;display:block;font-weight:600}
+.row{display:flex;gap:10px}
+.row>*{flex:1}
+
+/* ---------- lobby ---------- */
+.lobby-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:6px}
+@media(max-width:680px){.lobby-grid{grid-template-columns:1fr}}
+.panel h3{font-size:1.15rem;color:var(--ink);margin-bottom:4px}
+.panel .sub{font-size:.85rem;color:var(--ink-soft);margin-bottom:16px}
+
+/* ---------- session header ---------- */
+.shead{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.shead .title-in{font-family:'Cinzel',serif;font-size:1.5rem;color:var(--parchment);background:transparent;border:none;border-bottom:1px dashed transparent;padding:2px 4px;width:auto;max-width:60vw}
+.shead .title-in:focus{border-bottom-color:var(--hair);box-shadow:none;background:transparent}
+.shead .date{font-size:.78rem;letter-spacing:.2em;text-transform:uppercase;color:rgba(243,234,210,.55);margin-top:4px}
+.plate{
+  display:flex;align-items:center;gap:12px;background:linear-gradient(180deg,#1a513f,#0c3527);
+  border:1px solid var(--hair);border-radius:12px;padding:10px 14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+}
+.plate .lbl{font-size:.6rem;letter-spacing:.28em;text-transform:uppercase;color:rgba(243,234,210,.55)}
+.plate .code{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:1.5rem;letter-spacing:.34em;color:var(--gold-soft);text-shadow:0 0 18px rgba(216,182,90,.35)}
+.copybtn{background:none;border:none;color:var(--gold);cursor:pointer;font-size:1rem;padding:4px}
+.live{display:inline-flex;align-items:center;gap:7px;font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;color:rgba(243,234,210,.6)}
+.live .dot{width:8px;height:8px;border-radius:50%;background:var(--win-bright);box-shadow:0 0 0 0 rgba(63,191,133,.6);animation:pulse 2s infinite}
+.live.local .dot{background:var(--gold);box-shadow:none;animation:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,191,133,.5)}70%{box-shadow:0 0 0 8px rgba(63,191,133,0)}100%{box-shadow:0 0 0 0 rgba(63,191,133,0)}}
+
+/* ---------- pot strip ---------- */
+.pot{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--hair);border:1px solid var(--hair);border-radius:12px;overflow:hidden;margin-bottom:18px}
+.pot .cell{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(0,0,0,.14));padding:14px 12px;text-align:center}
+.pot .cell .k{font-size:.62rem;letter-spacing:.22em;text-transform:uppercase;color:rgba(243,234,210,.6)}
+.pot .cell .v{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:1.25rem;margin-top:4px;color:var(--gold-soft)}
+.pot .cell .v.warn{color:var(--red)}
+.pot .cell .v.ok{color:var(--win-bright)}
+.balance-note{font-size:.78rem;text-align:center;margin:-8px 0 18px;color:rgba(243,234,210,.7)}
+.balance-note b{color:var(--gold-soft)}
+.balance-note.ok b{color:var(--win-bright)}
+
+/* ---------- players ---------- */
+.section-title{display:flex;align-items:center;gap:12px;margin:26px 0 14px}
+.section-title h2{font-size:1rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gold)}
+.section-title .ln{flex:1;height:1px;background:var(--hair)}
+.players{display:flex;flex-direction:column;gap:12px}
+.pcard{
+  background:linear-gradient(180deg,var(--parchment),var(--parchment-2));color:var(--ink);
+  border-radius:12px;padding:14px 16px;box-shadow:0 12px 26px -18px rgba(0,0,0,.7);
+  border:1px solid rgba(110,80,30,.22);display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;
+  position:relative;overflow:hidden;
+}
+.pcard .suit-wm{position:absolute;right:-10px;bottom:-22px;font-size:5rem;color:rgba(177,138,52,.08);font-family:serif;pointer-events:none}
+.pcard .who{display:flex;flex-direction:column;gap:8px;min-width:0}
+.pcard .name{font-family:'Cinzel',serif;font-size:1.1rem;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:8px}
+.pcard .stats{display:flex;gap:16px;flex-wrap:wrap}
+.stat{display:flex;flex-direction:column}
+.stat .k{font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft)}
+.stat .v{font-family:'JetBrains Mono',monospace;font-weight:500;font-size:.95rem;color:var(--ink)}
+.net{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:1.15rem;padding:6px 12px;border-radius:8px;white-space:nowrap}
+.net.up{color:#0d5236;background:rgba(63,191,133,.16)}
+.net.down{color:var(--red-deep);background:rgba(178,58,72,.12)}
+.net.flat{color:var(--ink-soft);background:rgba(90,79,61,.1)}
+.pactions{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;border-top:1px dashed var(--parchment-line);padding-top:12px}
+.pactions .btn.dark{background:linear-gradient(180deg,#eadfbf,#ddccA0);color:#5a4416;border:1px solid rgba(177,138,52,.4)}
+.pactions .btn.dark:hover{background:#e3d4ac}
+
+/* chip stack viz */
+.chips{display:inline-flex;align-items:center;height:14px}
+.chips i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-left:-5px;border:1px solid rgba(0,0,0,.25);box-shadow:0 1px 1px rgba(0,0,0,.2)}
+.chips i:first-child{margin-left:0}
+
+/* add player inline */
+.addrow{display:flex;gap:10px;margin-top:14px}
+.addrow input{flex:1}
+
+/* ---------- settlement ---------- */
+.settle-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:680px){.settle-grid{grid-template-columns:1fr}}
+.ledger-list{display:flex;flex-direction:column}
+.ledger-row{display:flex;align-items:center;justify-content:space-between;padding:11px 2px;border-bottom:1px solid var(--hair);gap:10px}
+.ledger-row:last-child{border-bottom:none}
+.ledger-row .nm{font-family:'Jost';font-weight:500}
+.ledger-row .amt{font-family:'JetBrains Mono',monospace;font-weight:700}
+.amt.up{color:var(--win-bright)}.amt.down{color:var(--loss)}
+.transfer{display:flex;align-items:center;gap:10px;padding:12px 2px;border-bottom:1px solid var(--hair)}
+.transfer:last-child{border-bottom:none}
+.transfer .from{color:var(--loss);font-weight:600}
+.transfer .to{color:var(--win-bright);font-weight:600}
+.transfer .arrow{color:var(--gold);flex:1;text-align:center;letter-spacing:.1em;position:relative}
+.transfer .pay{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--gold-soft);background:rgba(216,182,90,.12);padding:3px 10px;border-radius:7px}
+.settled-msg{text-align:center;padding:18px;color:var(--win-bright);font-family:'Cinzel',serif;letter-spacing:.06em}
+
+/* ---------- activity log ---------- */
+.log{display:flex;flex-direction:column}
+.logrow{display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid var(--hair);font-size:.9rem}
+.logrow:last-child{border-bottom:none}
+.logrow .badge{font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;border-radius:20px;font-weight:600;white-space:nowrap}
+.badge.buyin{background:rgba(178,58,72,.16);color:#e88a93}
+.badge.cashout{background:rgba(63,191,133,.16);color:var(--win-bright)}
+.logrow .lname{font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.logrow .lamt{font-family:'JetBrains Mono',monospace;font-weight:500}
+.logrow .lact{display:flex;gap:4px}
+.iconbtn{background:none;border:none;color:rgba(243,234,210,.5);cursor:pointer;font-size:.85rem;padding:4px 6px;border-radius:6px}
+.iconbtn:hover{color:var(--gold);background:rgba(216,182,90,.1)}
+.iconbtn.del:hover{color:var(--loss);background:rgba(178,58,72,.12)}
+
+/* ---------- history ---------- */
+.hist-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(0,0,0,.12));border:1px solid var(--hair);margin-bottom:10px;cursor:pointer;transition:transform .12s,border .2s}
+.hist-row:hover{transform:translateX(3px);border-color:var(--gold-deep)}
+.hist-row .hi-name{font-family:'Cinzel',serif;color:var(--parchment)}
+.hist-row .hi-meta{font-size:.74rem;color:rgba(243,234,210,.55);letter-spacing:.08em}
+.hist-row .hi-status{font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;padding:4px 10px;border-radius:20px}
+.hi-status.active{background:rgba(63,191,133,.16);color:var(--win-bright)}
+.hi-status.ended{background:rgba(216,140,58,.18);color:#e9a85c}
+.hi-status.settled{background:rgba(216,182,90,.16);color:var(--gold-soft)}
+.lb-row{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid var(--hair)}
+.lb-row:last-child{border-bottom:none}
+.lb-rank{font-family:'Cinzel',serif;font-size:1.05rem;color:var(--gold);width:28px;text-align:center}
+.lb-rank.gold{color:var(--gold-soft)}
+.lb-name{flex:1;font-weight:500}
+.lb-meta{font-size:.7rem;color:rgba(243,234,210,.5)}
+.lb-net{font-family:'JetBrains Mono',monospace;font-weight:700}
+
+/* ---------- modal ---------- */
+.scrim{position:fixed;inset:0;z-index:50;background:rgba(4,16,12,.66);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:18px;opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.show{opacity:1;pointer-events:auto}
+.modal{width:100%;max-width:380px;transform:translateY(10px) scale(.98);transition:transform .2s}
+.scrim.show .modal{transform:none}
+.modal h3{font-size:1.15rem;color:var(--ink);margin-bottom:4px}
+.modal .msub{font-size:.85rem;color:var(--ink-soft);margin-bottom:16px}
+.modal .mactions{display:flex;gap:10px;margin-top:18px}
+.quick-amts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.qa{font-family:'JetBrains Mono',monospace;font-size:.82rem;padding:7px 12px;border-radius:20px;border:1px solid var(--parchment-line);background:rgba(255,255,255,.5);cursor:pointer;color:var(--ink)}
+.qa:hover{border-color:var(--gold-deep);background:#fff}
+
+/* ---------- hand rankings reference ---------- */
+.toprow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.toprow .back{margin-bottom:0}
+.modal-lg{max-width:660px;max-height:90vh;display:flex;flex-direction:column;padding:0;overflow:hidden}
+.modal-lg::before{inset:10px;border-radius:9px}
+.hands-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:20px 22px 10px}
+.hands-head h3{font-size:1.3rem;color:var(--ink);margin:0;display:flex;align-items:center;gap:10px}
+.hands-head .iconbtn{color:var(--ink-soft)}
+.hands-head .iconbtn:hover{color:var(--red);background:rgba(178,58,72,.1)}
+.hands-sub{padding:0 22px 12px;font-size:.84rem;color:var(--ink-soft)}
+.hands-list{overflow-y:auto;padding:0 22px 6px;flex:1}
+.hand-row{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--parchment-line)}
+.hand-row:last-child{border-bottom:none}
+.hand-rank{font-family:'Cinzel',serif;font-weight:700;font-size:1.15rem;color:var(--gold-deep);width:26px;text-align:center;line-height:1}
+.hand-info{min-width:0}
+.hand-name{font-family:'Cinzel',serif;font-weight:600;font-size:1rem;color:var(--ink)}
+.hand-blurb{font-size:.76rem;color:var(--ink-soft);margin-top:2px}
+.hand-cards{display:flex;gap:4px;margin-top:7px;flex-wrap:wrap}
+.pcd{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:30px;height:42px;border-radius:5px;background:#fffdf7;border:1px solid #cdbf9a;box-shadow:0 1px 2px rgba(0,0,0,.18);font-family:'JetBrains Mono',monospace;line-height:1}
+.pcd b{font-size:.78rem;font-weight:700;color:#1a1a1a}
+.pcd .su{font-size:.8rem;margin-top:1px;color:#1a1a1a}
+.pcd.red b,.pcd.red .su{color:#b3271f}
+.hands-foot{padding:12px 22px 20px;font-size:.74rem;color:var(--ink-soft);border-top:1px solid var(--parchment-line);background:rgba(177,138,52,.06)}
+@media(max-width:500px){.pcd{width:26px;height:37px}.hand-cards{gap:3px}}
+
+/* ---------- dealer & blinds ---------- */
+.seats{display:flex;flex-wrap:wrap;gap:8px}
+.seat{display:flex;align-items:center;gap:9px;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(0,0,0,.12));border:1px solid var(--hair);border-radius:10px;padding:9px 13px;cursor:pointer;color:var(--parchment);font-family:'Jost';transition:border .2s,transform .12s}
+.seat:hover{border-color:var(--gold-deep);transform:translateY(-1px)}
+.seat.isd{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
+.seat-name{font-weight:500}
+.seat-badges{display:flex;gap:4px}
+.bdg{font-family:'Jost';font-size:.56rem;font-weight:700;letter-spacing:.04em;padding:2px 6px;border-radius:20px;line-height:1.3}
+.bdg.d{background:var(--gold);color:var(--felt-3)}
+.bdg.sb{background:rgba(216,182,90,.22);color:var(--gold-soft)}
+.bdg.bb{background:transparent;color:var(--gold-soft);border:1px solid var(--hair)}
+.dealer-ctrl{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px;border-top:1px dashed var(--hair);padding-top:13px}
+.dealer-hint{font-size:.72rem;color:rgba(243,234,210,.6)}
+.dealer-hint b{color:var(--gold-soft);font-weight:700}
+
+/* ---------- host PIN / edit-access ---------- */
+.access-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:rgba(177,138,52,.08);border:1px solid var(--parchment-line);border-radius:10px;padding:11px 16px;margin-bottom:14px;font-size:.84rem;color:var(--ink-soft)}
+.access-bar.warn{background:rgba(178,58,72,.08);border-color:rgba(178,58,72,.3)}
+.access-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.access-bar .name-in{font-family:'Jost';font-size:.82rem;padding:7px 10px;border:1px solid var(--parchment-line);border-radius:7px;background:#fffdf7;min-width:200px}
+.pin-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.pin-row>span{font-size:.78rem;color:rgba(243,234,210,.7);font-family:'Jost'}
+.pin-val{font-family:'JetBrains Mono',monospace;font-size:1rem;color:var(--gold-soft);letter-spacing:.1em}
+.editor-row,.viewer-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--hair);font-size:.86rem;color:var(--parchment)}
+.editor-row:last-child,.viewer-row:last-child{border-bottom:none}
+.tag-ok{font-family:'Jost';font-size:.6rem;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:20px;background:rgba(63,191,133,.18);color:var(--win-bright)}
+
+/* ---------- phased game + UPI settle-up ---------- */
+.endgame-bar{margin:18px 0 4px;text-align:center}
+.endgame-hint{font-size:.74rem;color:var(--ink-soft);margin-top:8px}
+.player-upi{display:flex;align-items:center;gap:6px;margin-top:5px;font-size:.74rem;color:var(--ink-soft);font-family:'JetBrains Mono',monospace}
+.player-upi .uid{color:var(--gold-deep);word-break:break-all}
+.player-upi .lk{cursor:pointer;color:var(--ink-soft);border:none;background:none;font-size:.8rem;padding:0;line-height:1}
+.player-upi .lk:hover{color:var(--gold-deep)}
+.me-claim{margin-top:5px;font-size:.72rem}
+.me-claim button{background:none;border:none;color:var(--ink-soft);cursor:pointer;font-family:'Jost';text-decoration:underline;padding:0;font-size:.72rem}
+.me-claim button:hover{color:var(--gold-deep)}
+.me-badge{display:inline-flex;align-items:center;gap:4px;font-family:'Jost';font-size:.6rem;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:20px;background:rgba(216,182,90,.2);color:var(--gold-deep);margin-top:5px}
+.transfer{flex-direction:column;align-items:stretch;gap:8px}
+.transfer-main{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.transfer-pay{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.transfer-pay .nopay{font-size:.74rem;color:rgba(243,234,210,.55)}
+.settle-sub{font-family:'Jost';font-size:.66rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--gold-soft);margin:14px 0 6px}
+.settle-sub:first-child{margin-top:0}
+
+/* ---------- auth ---------- */
+.authchip{position:absolute;top:8px;right:4px;margin:0;z-index:30}
+.avatar-wrap{position:relative}
+.avatar{width:44px;height:44px;border-radius:50%;border:1.5px solid var(--gold-deep);background:radial-gradient(120% 120% at 30% 20%,rgba(216,182,90,.28),rgba(216,182,90,.06));color:var(--gold-soft);font-family:'Jost';font-weight:700;font-size:.95rem;letter-spacing:.01em;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s,border-color .2s,box-shadow .2s}
+.avatar:hover{border-color:var(--gold);box-shadow:0 0 0 4px rgba(216,182,90,.14);transform:translateY(-1px)}
+.avatar-menu{position:absolute;top:52px;right:0;min-width:178px;background:#13241d;border:1px solid var(--hair);border-radius:12px;padding:6px;box-shadow:0 14px 38px rgba(0,0,0,.5);z-index:40;animation:menuIn .14s ease}
+@keyframes menuIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.avatar-menu-name{font-family:'Jost';font-size:.74rem;color:rgba(243,234,210,.55);padding:7px 12px 8px;border-bottom:1px solid var(--hair);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+.avatar-menu-item{display:block;width:100%;text-align:left;background:none;border:none;color:var(--parchment);font-family:'Jost';font-size:.86rem;padding:9px 12px;border-radius:8px;cursor:pointer}
+.avatar-menu-item:hover{background:rgba(216,182,90,.12)}
+.avatar-menu-item.danger{color:#e9a6ad}
+.avatar-menu-item.danger:hover{background:rgba(178,58,72,.16)}
+.or-line{display:flex;align-items:center;gap:10px;margin:16px 0 4px;color:rgba(243,234,210,.4);font-size:.72rem;letter-spacing:.1em}
+.or-line::before,.or-line::after{content:'';flex:1;height:1px;background:var(--hair)}
+.signin-msg{margin-top:12px;font-size:.82rem;text-align:center;min-height:1.2em}
+.signin-msg.ok{color:var(--win-bright)}
+.signin-msg.err{color:var(--red)}
+.profile-nudge{margin-top:10px;font-size:.78rem;line-height:1.45;color:var(--ink);background:rgba(177,138,52,.14);border:1px solid var(--parchment-line);border-radius:8px;padding:9px 11px}
+.transfer-pay a.btn{text-decoration:none;display:inline-flex;align-items:center}
+.qr-box{display:flex;justify-content:center;padding:14px;background:#fffdf7;border-radius:10px;margin:6px 0 12px}
+.qr-box svg{width:200px;height:200px}
+.qr-vpa{text-align:center;font-family:'JetBrains Mono',monospace;font-size:.88rem;color:var(--gold-deep);word-break:break-all;margin-bottom:8px}
+.qr-vpa:hover{color:var(--ink)}
+.qr-note{font-size:.72rem;line-height:1.45;color:var(--ink-soft);background:rgba(177,138,52,.12);border:1px solid var(--parchment-line);border-radius:8px;padding:8px 10px;margin-bottom:14px}
+
+/* ---------- chip counter ---------- */
+.chip-list{max-height:46vh;overflow:auto;margin:6px 0 4px;display:flex;flex-direction:column;gap:8px}
+.chip-row{display:flex;align-items:center;gap:12px}
+.chip-disc{flex:none;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Jost';font-weight:800;font-size:.92rem;border:2px solid rgba(0,0,0,.18);box-shadow:inset 0 0 0 3px rgba(255,255,255,.18),0 1px 3px rgba(0,0,0,.25);outline:2px dashed rgba(255,255,255,.45);outline-offset:-7px}
+.chip-mid{flex:1;min-width:0}
+.chip-den{font-family:'Jost';font-size:.82rem;color:var(--ink);font-weight:600}
+.chip-sub{font-size:.74rem;color:var(--ink-soft);font-family:'JetBrains Mono',monospace}
+.chip-sub b{color:var(--gold-deep)}
+.chip-step{flex:none;display:flex;align-items:center;gap:6px}
+.chip-step button{width:30px;height:30px;border-radius:8px;border:1px solid var(--parchment-line);background:#fffdf7;color:var(--ink);font-size:1.1rem;line-height:1;cursor:pointer;font-family:'Jost'}
+.chip-step button:hover{border-color:var(--gold-deep);background:#fff}
+.chip-cnt{width:46px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:.95rem;padding:6px 4px;border:1px solid var(--parchment-line);border-radius:8px;background:#fff}
+.chip-row.edit{gap:8px}
+.chip-row.edit .chip-color{flex:none;width:38px;height:34px;padding:0;border:1px solid var(--parchment-line);border-radius:8px;background:none;cursor:pointer}
+.chip-row.edit .chip-eqv{color:var(--ink-soft);font-family:'JetBrains Mono',monospace}
+.chip-row.edit .chip-val{flex:1;font-family:'JetBrains Mono',monospace;font-size:.95rem;padding:7px 10px;border:1px solid var(--parchment-line);border-radius:8px;background:#fff}
+.chip-add{width:100%;margin-top:2px}
+.chip-total{display:flex;align-items:center;justify-content:space-between;margin:10px 0 4px;padding-top:10px;border-top:1px dashed var(--parchment-line);font-family:'Jost';font-weight:700;color:var(--ink)}
+.chip-total .mono{font-family:'JetBrains Mono',monospace;font-size:1.15rem;color:var(--gold-deep)}
+
+/* ---------- toast / banner ---------- */
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);z-index:60;background:#0c3527;border:1px solid var(--hair);color:var(--gold-soft);padding:12px 20px;border-radius:30px;font-size:.85rem;letter-spacing:.04em;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:all .25s}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.setup-banner{background:linear-gradient(180deg,rgba(216,182,90,.14),rgba(216,182,90,.06));border:1px solid var(--hair);border-radius:12px;padding:12px 16px;margin-bottom:18px;font-size:.82rem;color:var(--gold-soft);display:flex;align-items:center;gap:10px;justify-content:center;text-align:center}
+.setup-banner b{color:var(--parchment)}
+
+.empty{text-align:center;color:rgba(243,234,210,.5);padding:24px;font-size:.9rem;font-style:italic}
+.back{display:inline-flex;align-items:center;gap:8px;background:none;border:none;color:var(--gold);cursor:pointer;font-family:'Jost';font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:.74rem;margin-bottom:14px;padding:6px 0}
+.back:hover{color:var(--gold-soft)}
+
+.fade-in{animation:fadeUp .5s ease both}
+.fade-in.d1{animation-delay:.06s}.fade-in.d2{animation-delay:.12s}.fade-in.d3{animation-delay:.18s}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.hidden{display:none!important}
+.footer-note{text-align:center;margin-top:40px;font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:rgba(243,234,210,.35)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="mast fade-in">
+    <div class="suits"><span>&spades;</span><span class="r">&hearts;</span><span class="r">&diams;</span><span>&clubs;</span></div>
+    <h1>The House <span class="amp">&amp;</span> Ledger</h1>
+    <div class="tag">Poker Night Accounting</div>
+    <div class="rule"></div>
+    <div id="authchip" class="authchip"></div>
+  </header>
+
+  <main id="app"></main>
+
+  <div class="footer-note">Deal honest · Settle clean</div>
+</div>
+
+<!-- modal mount -->
+<div class="scrim" id="scrim"><div id="modal-host"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- QR generator (MIT) for UPI settle-up codes. If it fails to load (offline),
+     the pay modal degrades gracefully to the deep link + VPA text. -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<!-- jsPDF (MIT) for the downloadable settlement report. Falls back to a
+     print-friendly window if it fails to load. -->
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script>
+/* =========================================================================
+   THE HOUSE LEDGER — poker night accounting
+   Single-file app. Data layer swaps between Supabase (shared, live) and
+   a localStorage demo backend (this device only) based on POKER_CONFIG.
+   ========================================================================= */
+
+const CFG = window.POKER_CONFIG || {};
+const SUPA_READY = sb_configured();
+function sb_configured(){
+  const u = CFG.SUPABASE_URL, k = CFG.SUPABASE_ANON_KEY;
+  return u && k && !u.includes("YOUR_") && !k.includes("YOUR_") && /^https?:\/\//.test(u);
+}
+
+/* ---------- helpers ---------- */
+const $ = (s,el=document)=>el.querySelector(s);
+const el = (html)=>{const t=document.createElement('template');t.innerHTML=html.trim();return t.content.firstElementChild;};
+const esc = (s)=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = (n)=>'₹'+Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:2});
+const signMoney = (n)=> (n>0?'+':n<0?'−':'')+'₹'+Math.abs(Number(n||0)).toLocaleString('en-IN',{maximumFractionDigits:2});
+const round2 = (n)=>Math.round((Number(n)+Number.EPSILON)*100)/100;
+const EPS = 0.005;
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const genCode = ()=>Array.from({length:4},()=>CODE_ALPHABET[Math.floor(Math.random()*CODE_ALPHABET.length)]).join('');
+// UPI deep link — opens the payer's own UPI app pre-filled. The app never
+// touches money. Built by hand (NOT URLSearchParams) so spaces encode as %20,
+// not "+". A "+" (or any malformed payload) makes PSP apps throw a generic
+// error: WhatsApp shows "description not accepted"; GPay/PhonePe/Paytm mask it
+// as "limit exceeded" (a parse-failure fallback, NOT a real money limit). Rules
+// that keep the payload valid across apps:
+//   • spaces → %20 (encodeURIComponent), never "+"
+//   • the VPA "@" stays literal (the canonical form; %40 is parser-fussy)
+//   • amount is always a 2-decimal string (toFixed(2)), e.g. "300.00"
+//   • P2P intent only — no mc/tr (those are merchant-only and would push some
+//     apps into a merchant flow that then errors on the missing fields)
+function buildUpiLink({pa,pn,am,tn}){
+  const enc=encodeURIComponent;
+  const encVpa=(v)=>{ const s=String(v||''); const at=s.indexOf('@'); return at<0?enc(s):enc(s.slice(0,at))+'@'+enc(s.slice(at+1)); };
+  const parts=['pa='+encVpa(pa)];
+  if(pn) parts.push('pn='+enc(pn));
+  if(am!=null) parts.push('am='+Number(am).toFixed(2));
+  parts.push('cu=INR');
+  if(tn) parts.push('tn='+enc(tn));
+  return 'upi://pay?'+parts.join('&');
+}
+const validVpa = (v)=>/^[^\s@]+@[^\s@]+$/.test(String(v||'').trim());
+// chip counter — default denominations + colours (classic poker set); editable per game
+const DEFAULT_CHIPS=[
+  {value:5,color:'#f3ead2'},   // white
+  {value:10,color:'#b23a48'},  // red
+  {value:25,color:'#2e8b57'},  // green
+  {value:50,color:'#2e6da4'},  // blue
+  {value:100,color:'#1a1a1a'}, // black
+];
+const chipSet=(s)=>{ const c=s&&s.chip_config; return (Array.isArray(c)&&c.length)?c.map(x=>({value:Number(x.value)||0,color:x.color||'#888'})):DEFAULT_CHIPS.map(x=>({...x})); };
+// readable ink (dark/light) for a chip's value text, based on the chip colour's luminance
+const chipInk=(hex)=>{ const h=String(hex||'').replace('#',''); if(h.length<6) return '#fff'; const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16); return (0.299*r+0.587*g+0.114*b)>150?'#1a1a1a':'#fff'; };
+const todayName = ()=> 'Poker Night · '+new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+function getOrCreateDeviceId(){
+  let id=localStorage.getItem('poker_device_id');
+  if(!id){ id=crypto.randomUUID?crypto.randomUUID():'dev'+Math.random().toString(36).slice(2); localStorage.setItem('poker_device_id',id); }
+  return id;
+}
+const DEVICE_ID = getOrCreateDeviceId();
+const fmtDate = (iso)=> new Date(iso).toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+const CHIP_COLORS = ['#b23a48','#1f6f8b','#2f7d4f','#3b3b46','#b18a34','#7a4ea6'];
+function chipStack(amount){
+  const n = Math.min(6, Math.max(1, Math.round(amount/Math.max(amount,1)* (amount>0?Math.min(6,1+Math.floor(Math.log10(Math.max(amount,1)))):0))));
+  let s='<span class="chips">';
+  for(let i=0;i<(amount>0?n:0);i++) s+=`<i style="background:${CHIP_COLORS[i%CHIP_COLORS.length]}"></i>`;
+  return s+'</span>';
+}
+
+function toast(msg){
+  const t=$('#toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+/* =========================================================================
+   DATA LAYER
+   ========================================================================= */
+// One Supabase client shared by auth + the data layer (so the signed-in session
+// is the same one the DB calls use). Null in local demo mode.
+const supa = SUPA_READY ? supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_ANON_KEY) : null;
+
+function makeBackend(){
+  return SUPA_READY ? new SupabaseBackend() : new LocalBackend();
+}
+
+/* ---- Local (demo) backend: localStorage, cross-tab sync ---- */
+class LocalBackend{
+  constructor(){
+    this.mode='local';
+    this.KEY='poker_ledger_v1';
+    this._subs=new Set();
+    window.addEventListener('storage',e=>{ if(e.key===this.KEY) this._emit(); });
+  }
+  _db(){ try{return JSON.parse(localStorage.getItem(this.KEY))||{sessions:{},players:{},entries:{}};}catch{return{sessions:{},players:{},entries:{}};} }
+  _save(d){ localStorage.setItem(this.KEY,JSON.stringify(d)); this._emit(); }
+  _emit(){ this._subs.forEach(fn=>fn()); }
+  _id(){ return (crypto.randomUUID?crypto.randomUUID():'id'+Math.random().toString(36).slice(2)); }
+
+  async createSession(name){
+    const d=this._db(); let code; do{code=genCode();}while(Object.values(d.sessions).some(s=>s.code===code));
+    const s={id:this._id(),code,name:name||todayName(),currency:'₹',status:'active',created_at:new Date().toISOString()};
+    d.sessions[s.id]=s; this._save(d); return s;
+  }
+  async getSession(id){ return this._db().sessions[id]||null; }
+  async getSessionByCode(code){ return Object.values(this._db().sessions).find(s=>s.code===code.toUpperCase())||null; }
+  async joinByCode(code){ return this.getSessionByCode(code); }   // local single-user: joining is just opening
+  async listSessions(){ return Object.values(this._db().sessions).sort((a,b)=>b.created_at.localeCompare(a.created_at)); }
+  // local demo is single-device/single-user — membership is implicit, so these are no-ops
+  async ensureMember(sid,role){ return; }
+  async getMembers(sid){ return []; }       // renderSession treats local mode as always-editable
+  async claimSeat(pid){ return; }            // local uses the per-device poker_me_ claim
+  async renameSession(id,name){ const d=this._db(); if(d.sessions[id]){d.sessions[id].name=name;this._save(d);} }
+  async setStatus(id,status){ const d=this._db(); if(d.sessions[id]){d.sessions[id].status=status;this._save(d);} }
+  async setChipConfig(id,config){ const d=this._db(); if(d.sessions[id]){d.sessions[id].chip_config=config;this._save(d);} }
+  async deleteSession(id){ const d=this._db(); delete d.sessions[id];
+    Object.values(d.players).filter(p=>p.session_id===id).forEach(p=>delete d.players[p.id]);
+    Object.values(d.entries).filter(e=>e.session_id===id).forEach(e=>delete d.entries[e.id]);
+    this._save(d);
+  }
+  async getPlayers(sid){ return Object.values(this._db().players).filter(p=>p.session_id===sid).sort((a,b)=>a.created_at.localeCompare(b.created_at)); }
+  async addPlayer(sid,name){ const d=this._db(); const p={id:this._id(),session_id:sid,name,upi_id:null,created_at:new Date().toISOString()}; d.players[p.id]=p; this._save(d); return p; }
+  async removePlayer(pid){ const d=this._db(); delete d.players[pid]; Object.values(d.entries).filter(e=>e.player_id===pid).forEach(e=>delete d.entries[e.id]); this._save(d); }
+  async setPlayerUpi(pid,upi){ const d=this._db(); if(d.players[pid]){d.players[pid].upi_id=upi||null;this._save(d);} }
+  async getEntries(sid){ return Object.values(this._db().entries).filter(e=>e.session_id===sid).sort((a,b)=>a.created_at.localeCompare(b.created_at)); }
+  async addEntry(sid,pid,type,amount){ const d=this._db(); const e={id:this._id(),session_id:sid,player_id:pid,type,amount:round2(amount),created_at:new Date().toISOString()}; d.entries[e.id]=e; this._save(d); return e; }
+  async updateEntry(eid,amount){ const d=this._db(); if(d.entries[eid]){d.entries[eid].amount=round2(amount);this._save(d);} }
+  async deleteEntry(eid){ const d=this._db(); delete d.entries[eid]; this._save(d); }
+  // local demo mode is single-device — no other devices to delegate to, so presence is a no-op
+  subscribe(sid,cb,presence){ this._subs.add(cb); if(presence) presence.onSync({}); return ()=>this._subs.delete(cb); }
+  async grantEditor(sid,uid){ return; }      // single-user local: roles are moot
+  async revokeEditor(sid,uid){ return; }
+}
+
+/* ---- Supabase backend: shared + realtime ---- */
+class SupabaseBackend{
+  constructor(){
+    this.mode='cloud';
+    this.sb=supa; // reuse the shared client so DB calls run as the signed-in user
+  }
+  // create a table + owner membership atomically (server-side; replaces the
+  // client code-gen loop and the old host_pin). Returns the new session row.
+  async createSession(name){
+    const {data,error}=await this.sb.rpc('create_session',{p_name:name||todayName()});
+    if(error) throw error;
+    return data;
+  }
+  async getSession(id){ const {data}=await this.sb.from('sessions').select('id,code,name,currency,status,created_at,chip_config').eq('id',id).maybeSingle(); return data; }
+  // join by code → become a member + get a player row linked to your account.
+  // Returns null when the code matches no table (RLS would otherwise hide it).
+  async joinByCode(code){ const {data,error}=await this.sb.rpc('join_by_code',{p_code:(code||'').toUpperCase()}); if(error) throw error; return data; }
+  // Stage 2: scope to the games this signed-in user belongs to (membership rows).
+  // Stage 3 RLS limits session_members to the user's own rows AND requires
+  // membership to read the embedded sessions, so this comes back already scoped.
+  async listSessions(){
+    const uid=Auth.user&&Auth.user.id; if(!uid) return [];
+    const {data}=await this.sb.from('session_members')
+      .select('sessions(id,code,name,currency,status,created_at)')
+      .eq('user_id',uid).limit(100);
+    return (data||[]).map(r=>r.sessions).filter(Boolean)
+      .sort((a,b)=>b.created_at.localeCompare(a.created_at));
+  }
+  // members of a session with their profile name + role (for the Edit Access panel).
+  // Two-step (no direct FK from session_members→profiles to embed); profiles are
+  // readable, session_members SELECT is gated to members.
+  async getMembers(sid){
+    const {data:mem}=await this.sb.from('session_members').select('user_id,role').eq('session_id',sid);
+    const members=mem||[]; if(!members.length) return [];
+    const ids=members.map(m=>m.user_id);
+    const {data:profs}=await this.sb.from('profiles').select('id,display_name').in('id',ids);
+    const nameById=Object.fromEntries((profs||[]).map(p=>[p.id,p.display_name]));
+    return members.map(m=>({user_id:m.user_id, role:m.role, name:nameById[m.user_id]||'Player'}));
+  }
+  async renameSession(id,name){ await this.sb.from('sessions').update({name}).eq('id',id); }
+  async setStatus(id,status){ await this.sb.from('sessions').update({status}).eq('id',id); }
+  async setChipConfig(id,config){ await this.sb.from('sessions').update({chip_config:config}).eq('id',id); }
+  async deleteSession(id){ await this.sb.from('sessions').delete().eq('id',id); }
+  async getPlayers(sid){ const {data}=await this.sb.from('players').select('*').eq('session_id',sid).order('created_at'); return data||[]; }
+  async addPlayer(sid,name){ const {data}=await this.sb.from('players').insert({session_id:sid,name}).select().single(); return data; }
+  async removePlayer(pid){ await this.sb.from('players').delete().eq('id',pid); }
+  async setPlayerUpi(pid,upi){ await this.sb.rpc('set_player_upi',{p_player_id:pid,p_upi:upi||null}); }
+  async claimSeat(pid){ await this.sb.rpc('claim_seat',{p_player_id:pid}); }
+  async getEntries(sid){ const {data}=await this.sb.from('entries').select('*').eq('session_id',sid).order('created_at'); return data||[]; }
+  async addEntry(sid,pid,type,amount){ const {data}=await this.sb.from('entries').insert({session_id:sid,player_id:pid,type,amount:round2(amount)}).select().single(); return data; }
+  async updateEntry(eid,amount){ await this.sb.from('entries').update({amount:round2(amount)}).eq('id',eid); }
+  async deleteEntry(eid){ await this.sb.from('entries').delete().eq('id',eid); }
+  // owner-only role changes (account-based now, not device). Server enforces owner.
+  async grantEditor(sid,userId){ const {error}=await this.sb.rpc('grant_editor',{p_session_id:sid,p_user_id:userId}); if(error) throw error; }
+  async revokeEditor(sid,userId){ const {error}=await this.sb.rpc('revoke_editor',{p_session_id:sid,p_user_id:userId}); if(error) throw error; }
+  // one realtime channel per table does double duty: postgres row changes + ephemeral viewer presence.
+  // All .on() listeners must be registered before the single .subscribe() call, and track() must wait
+  // for the SUBSCRIBED callback — so this is one method, not split across subscribe/track/untrack.
+  subscribe(sid,cb,presence){
+    const ch=this.sb.channel('sess-'+sid,presence?{config:{presence:{key:DEVICE_ID}}}:undefined)
+      .on('postgres_changes',{event:'*',schema:'public',table:'players',filter:'session_id=eq.'+sid},cb)
+      .on('postgres_changes',{event:'*',schema:'public',table:'entries',filter:'session_id=eq.'+sid},cb)
+      .on('postgres_changes',{event:'*',schema:'public',table:'sessions',filter:'id=eq.'+sid},cb)
+      .on('postgres_changes',{event:'*',schema:'public',table:'session_members',filter:'session_id=eq.'+sid},cb);
+    if(presence) ch.on('presence',{event:'sync'},()=>presence.onSync(ch.presenceState()));
+    ch.subscribe(async(status)=>{ if(status==='SUBSCRIBED'&&presence) await ch.track(presence.info); });
+    return ()=>{ if(presence) ch.untrack(); this.sb.removeChannel(ch); };
+  }
+}
+
+const db = makeBackend();
+
+/* =========================================================================
+   MONEY MATH
+   ========================================================================= */
+function tally(players, entries){
+  const map = new Map(players.map(p=>[p.id,{...p,buyin:0,cashout:0,net:0,cashedOut:false}]));
+  for(const e of entries){
+    const r=map.get(e.player_id); if(!r) continue;
+    if(e.type==='buyin') r.buyin+=Number(e.amount);
+    else { r.cashout+=Number(e.amount); r.cashedOut=true; }
+  }
+  for(const r of map.values()) r.net=round2(r.cashout-r.buyin);
+  const rows=[...map.values()];
+  const totalBuyin=round2(rows.reduce((a,r)=>a+r.buyin,0));
+  const totalCashout=round2(rows.reduce((a,r)=>a+r.cashout,0));
+  return {rows,totalBuyin,totalCashout,balance:round2(totalCashout-totalBuyin)};
+}
+
+/* fewest transfers to settle everyone */
+function minimalTransfers(rows){
+  const debtors=[],creditors=[];
+  // carry the payee's id + upi_id so settle-up rows can build pay links/QRs
+  rows.forEach(r=>{ if(r.net<-EPS)debtors.push({name:r.name,id:r.id,amt:-r.net}); else if(r.net>EPS)creditors.push({name:r.name,id:r.id,upi:r.upi_id||null,amt:r.net}); });
+  debtors.sort((a,b)=>b.amt-a.amt); creditors.sort((a,b)=>b.amt-a.amt);
+  const out=[]; let i=0,j=0;
+  while(i<debtors.length&&j<creditors.length){
+    const pay=round2(Math.min(debtors[i].amt,creditors[j].amt));
+    if(pay>EPS) out.push({from:debtors[i].name,fromId:debtors[i].id,to:creditors[j].name,toId:creditors[j].id,toUpi:creditors[j].upi,amt:pay});
+    debtors[i].amt=round2(debtors[i].amt-pay); creditors[j].amt=round2(creditors[j].amt-pay);
+    if(debtors[i].amt<=EPS)i++; if(creditors[j].amt<=EPS)j++;
+  }
+  return out;
+}
+
+/* =========================================================================
+   APP STATE + ROUTER
+   ========================================================================= */
+const App={ view:'lobby', sessionId:null, unsub:null };
+const appEl=$('#app');
+
+function go(view,sessionId=null){
+  if(App.unsub){App.unsub();App.unsub=null;}
+  App.view=view; App.sessionId=sessionId;
+  if(sessionId) localStorage.setItem('poker_last_session',sessionId);
+  const target = view==='history' ? '#history' : view==='session' ? ('#t/'+sessionId) : '';
+  const cur = location.hash==='#' ? '' : location.hash;
+  // If the hash changes, the hashchange listener will render — calling render()
+  // here too would start a SECOND concurrent render and duplicate sections
+  // (e.g. "Recent Nights" twice). Only render directly when no hashchange fires.
+  if(cur===target) render();
+  else location.hash=target;
+}
+
+async function render(){
+  renderAuthChip();
+  if(App.view==='session' && App.sessionId) return renderSession();
+  if(App.view==='history') return renderHistory();
+  return renderLobby();
+}
+
+/* ---------- AUTH UI ---------- */
+function renderAuthChip(){
+  const host=$('#authchip'); if(!host) return;
+  if(!SUPA_READY || !Auth.user){ host.innerHTML=''; return; }
+  const name=(Auth.profile&&Auth.profile.display_name)||'Profile';
+  const initials=(name.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('')||'★').toUpperCase();
+  host.innerHTML='';
+  const wrap=el(`<div class="avatar-wrap">
+    <button class="avatar" id="acAvatar" title="${esc(name)} — your profile" aria-haspopup="true" aria-label="Profile menu">${esc(initials)}</button>
+    <div class="avatar-menu" id="acMenu" hidden>
+      <div class="avatar-menu-name">${esc(name)}</div>
+      <button class="avatar-menu-item" id="acEdit">Edit profile</button>
+      <button class="avatar-menu-item danger" id="acOut">Sign out</button>
+    </div>
+  </div>`);
+  const menu=wrap.querySelector('#acMenu');
+  const onDoc=(e)=>{ if(!wrap.contains(e.target)) close(); };
+  const close=()=>{ menu.hidden=true; document.removeEventListener('click',onDoc); };
+  wrap.querySelector('#acAvatar').onclick=(e)=>{
+    e.stopPropagation();
+    if(menu.hidden){ menu.hidden=false; setTimeout(()=>document.addEventListener('click',onDoc),0); } else close();
+  };
+  wrap.querySelector('#acEdit').onclick=()=>{ close(); openProfileModal(false); };
+  wrap.querySelector('#acOut').onclick=async()=>{ close(); await supa.auth.signOut(); };
+  host.append(wrap);
+}
+
+function renderSignIn(){
+  renderAuthChip();
+  appEl.innerHTML='';
+  const card=el(`
+    <section class="panel fade-in" style="max-width:420px;margin:8px auto">
+      <h3>Sign in</h3>
+      <p class="sub">Sign in once — your name and UPI ID then fill in automatically every game. You can still join any table with its code.</p>
+      <button class="btn block" id="googleBtn" style="margin-top:8px">Continue with Google</button>
+      <div class="or-line"><span>or</span></div>
+      <label class="field-label">Email</label>
+      <input id="emailIn" inputmode="email" placeholder="you@example.com" />
+      <button class="btn block dark" id="magicBtn" style="margin-top:12px">Email me a sign-in link</button>
+      <div id="signinMsg" class="signin-msg"></div>
+    </section>`);
+  card.querySelector('#googleBtn').onclick=async()=>{
+    const { error }=await supa.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname}});
+    if(error) toast(error.message);
+  };
+  const sendMagic=async()=>{
+    const email=card.querySelector('#emailIn').value.trim();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ toast('Enter a valid email'); return; }
+    const { error }=await supa.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname}});
+    const msg=card.querySelector('#signinMsg');
+    if(error){ msg.textContent=error.message; msg.className='signin-msg err'; }
+    else { msg.innerHTML='✓ Check <b>'+esc(email)+'</b> for a sign-in link.'; msg.className='signin-msg ok'; }
+  };
+  card.querySelector('#magicBtn').onclick=sendMagic;
+  card.querySelector('#emailIn').addEventListener('keydown',e=>{if(e.key==='Enter')sendMagic();});
+  appEl.append(card);
+}
+
+/* ---------- LOBBY ---------- */
+let _lobbySeq=0;
+async function renderLobby(){
+  const seq=++_lobbySeq;
+  const sessions = await db.listSessions();
+  if(seq!==_lobbySeq) return;   // a newer render started during the await — don't double-append
+  appEl.innerHTML='';
+  if(!SUPA_READY){
+    appEl.append(el(`<div class="setup-banner fade-in">⚙️ <span><b>Local demo mode.</b> Add your Supabase keys in <b>index.html</b> to sync across phones. See <b>README.md</b>.</span></div>`));
+  }
+  const grid=el(`<div class="lobby-grid"></div>`);
+
+  // start new
+  const start=el(`
+    <section class="panel fade-in d1">
+      <h3>Start a Table</h3>
+      <p class="sub">Open a new poker night and get a code to share.</p>
+      <label class="field-label">Night name</label>
+      <input id="newName" placeholder="${esc(todayName())}" value="${esc(todayName())}" />
+      <button class="btn block" id="startBtn" style="margin-top:14px">♠ Deal In</button>
+    </section>`);
+  start.querySelector('#startBtn').onclick=async()=>{
+    const name=start.querySelector('#newName').value.trim()||todayName();
+    const s=await db.createSession(name);   // RPC makes the creator the owner
+    go('session',s.id);
+  };
+
+  // join
+  const join=el(`
+    <section class="panel fade-in d2">
+      <h3>Join a Table</h3>
+      <p class="sub">Enter the 4-letter code from whoever started the night.</p>
+      <label class="field-label">Table code</label>
+      <input id="joinCode" maxlength="4" placeholder="A B C D" style="text-transform:uppercase;font-family:'JetBrains Mono',monospace;letter-spacing:.3em;text-align:center;font-size:1.3rem" />
+      <button class="btn block dark" id="joinBtn" style="margin-top:14px">Take a Seat →</button>
+    </section>`);
+  const joinFn=async()=>{
+    const code=join.querySelector('#joinCode').value.trim().toUpperCase();
+    if(code.length<4){toast('Enter the full 4-letter code');return;}
+    const s=await db.joinByCode(code);   // becomes a member + links a player seat
+    if(!s){toast('No table found for '+code);return;}
+    go('session',s.id);
+  };
+  join.querySelector('#joinBtn').onclick=joinFn;
+  join.querySelector('#joinCode').addEventListener('keydown',e=>{if(e.key==='Enter')joinFn();});
+
+  grid.append(start,join);
+  appEl.append(grid);
+
+  // recent / history teaser
+  if(sessions.length){
+    const recent=sessions.slice(0,4);
+    const hist=el(`
+      <section class="panel-felt fade-in d3" style="margin-top:18px">
+        <div class="section-title" style="margin-top:0"><h2>Recent Nights</h2><div class="ln"></div>
+          <button class="btn ghost sm" id="allHist">Leaderboard ♛</button>
+          <button class="btn danger sm" id="clearAll">Clear all ✕</button></div>
+        <div id="recentList"></div>
+      </section>`);
+    const list=hist.querySelector('#recentList');
+    for(const s of recent){
+      const {rows,totalBuyin}=tally(await db.getPlayers(s.id), await db.getEntries(s.id));
+      const row=el(`
+        <div class="hist-row">
+          <div>
+            <div class="hi-name">${esc(s.name)}</div>
+            <div class="hi-meta">${fmtDate(s.created_at)} · ${rows.length} players · ${money(totalBuyin)} pot · code ${esc(s.code)}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="hi-status ${s.status}">${s.status==='ended'?'settling':s.status}</div>
+            <button class="iconbtn del" title="Delete night">✕</button>
+          </div>
+        </div>`);
+      row.onclick=(e)=>{ if(e.target.closest('.del'))return; go('session',s.id); };
+      row.querySelector('.del').onclick=async(e)=>{ e.stopPropagation(); if(confirm(`Delete "${s.name}" permanently? This removes it for everyone.`)){ await db.deleteSession(s.id); renderLobby(); } };
+      list.append(row);
+    }
+    hist.querySelector('#allHist').onclick=()=>go('history');
+    hist.querySelector('#clearAll').onclick=async()=>{
+      if(confirm(`Delete all ${sessions.length} saved night(s) permanently? This removes them for everyone and cannot be undone.`)){
+        for(const x of sessions) await db.deleteSession(x.id);
+        toast('History cleared'); renderLobby();
+      }
+    };
+    appEl.append(hist);
+  }
+}
+
+/* ---------- SESSION ---------- */
+async function renderSession(){
+  const s=await db.getSession(App.sessionId);
+  // Stage 3: RLS only returns sessions you're a member of. A non-member who
+  // opens a shared #t/<id> link gets nothing back — point them at Join by code.
+  if(!s){ toast('Ask the host for the table code to join this game.'); go('lobby'); return; }
+  const players=await db.getPlayers(s.id);
+  const entries=await db.getEntries(s.id);
+  const {rows,totalBuyin,totalCashout,balance}=tally(players,entries);
+  const balanced=Math.abs(balance)<EPS;
+  const transfers=minimalTransfers(rows);
+
+  // ---------- account/role gating (Stage 3) ----------
+  // Editing is governed by membership role: owner + invited editors can edit,
+  // everyone else is read-only. Local demo mode is single-user → always editable.
+  const localMode = db.mode==='local';
+  const members = localMode ? [] : await db.getMembers(s.id);
+  const myUid = Auth.user && Auth.user.id;
+  const myMember = members.find(m=>m.user_id===myUid) || null;
+  const isOwner = localMode || (myMember && myMember.role==='owner');
+  const canEdit = localMode || (myMember && (myMember.role==='owner' || myMember.role==='editor'));
+
+  // ---------- game phase ----------
+  // active = playing (settlement hidden) · ended = settling (settle-up shown) ·
+  // settled = closed/filed. Legacy sessions default to 'active'.
+  const phase = s.status==='settled' ? 'settled' : s.status==='ended' ? 'ended' : 'active';
+  const settling = phase!=='active';            // show the Settle-Up section?
+  // which seat is "me": account-linked first (follows you across devices), then
+  // the per-device claim as a fallback for guest seats / local mode.
+  const myAccountSeat = !localMode && myUid ? (rows.find(r=>r.user_id===myUid)||null) : null;
+  const myPlayerId = myAccountSeat ? myAccountSeat.id : (localStorage.getItem('poker_me_'+s.id)||'');
+  // keep your linked seat's UPI in sync with your profile, so you never re-enter it
+  // (also backfills seats created before profile-UPI seeding existed)
+  if(myAccountSeat && !myAccountSeat.upi_id && Auth.profile && Auth.profile.upi_id){
+    try{ await db.setPlayerUpi(myAccountSeat.id, Auth.profile.upi_id); myAccountSeat.upi_id=Auth.profile.upi_id; }catch(e){}
+  }
+
+  appEl.innerHTML='';
+
+  // top row: back + hand-rankings + chip counter
+  const topRow=el(`<div class="toprow fade-in">
+    <button class="back">← All tables</button>
+    <button class="btn ghost sm" id="chipsBtn">🪙 Chip Counter</button>
+    <button class="btn ghost sm" id="handsBtn">♠ Hand Rankings</button>
+  </div>`);
+  topRow.querySelector('.back').onclick=()=>go('lobby');
+  topRow.querySelector('#chipsBtn').onclick=()=>openChipCounter(s, null, canEdit);
+  topRow.querySelector('#handsBtn').onclick=openHandRankings;
+  appEl.append(topRow);
+
+  // access banner: a non-editor member sees a simple view-only notice
+  if(!canEdit){
+    const viewBar=el(`<div class="access-bar warn fade-in">
+      <div>👁 View only — ask the table owner to make you an editor (their <b>Edit Access</b> panel).</div>
+    </div>`);
+    appEl.append(viewBar);
+  }
+
+  // header
+  const head=el(`
+    <div class="shead fade-in">
+      <div>
+        <input class="title-in" id="sName" value="${esc(s.name)}" ${canEdit?'':'readonly'} />
+        <div class="date">${fmtDate(s.created_at)} · <span class="live ${db.mode==='local'?'local':''}"><span class="dot"></span>${db.mode==='cloud'?'Live':'This device'}</span></div>
+      </div>
+      <div class="plate">
+        <div><div class="lbl">Table Code</div><div class="code">${esc(s.code)}</div></div>
+        <button class="copybtn" id="copyCode" title="Copy share link">⧉</button>
+      </div>
+    </div>`);
+  if(canEdit) head.querySelector('#sName').addEventListener('change',e=>db.renameSession(s.id,e.target.value.trim()||s.name));
+  head.querySelector('#copyCode').onclick=()=>{
+    const link=location.origin+location.pathname+'#t/'+s.id;
+    const text=`Join my poker night on The House Ledger\nTable code: ${s.code}\n${link}`;
+    navigator.clipboard?.writeText(text).then(()=>toast('Share link copied'),()=>toast('Code: '+s.code));
+  };
+  appEl.append(head);
+
+  // pot strip
+  const pot=el(`
+    <div class="pot fade-in d1">
+      <div class="cell"><div class="k">Total Buy-in</div><div class="v">${money(totalBuyin)}</div></div>
+      <div class="cell"><div class="k">Cashed Out</div><div class="v">${money(totalCashout)}</div></div>
+      <div class="cell"><div class="k">${balanced?'Pot Balanced':'On the Table'}</div><div class="v ${balanced?'ok':'warn'}">${balanced?'✓ ₹0':money(round2(totalBuyin-totalCashout))}</div></div>
+    </div>`);
+  appEl.append(pot);
+  // the balance nags only matter once you're settling — keep the playing screen clean
+  if(settling){
+    if(!balanced && totalBuyin>0){
+      appEl.append(el(`<div class="balance-note">Chips still uncounted: <b>${money(round2(totalBuyin-totalCashout))}</b> — enter each player's final chip value to balance the pot.</div>`));
+    } else if(balanced && totalBuyin>0){
+      appEl.append(el(`<div class="balance-note ok">Pot balanced — chips counted equal money in. <b>Settlement is final.</b></div>`));
+    }
+  }
+
+  // players
+  const ptitle=el(`<div class="section-title"><h2>Players</h2><div class="ln"></div></div>`); appEl.append(ptitle);
+  const plist=el(`<div class="players"></div>`);
+  if(!rows.length) plist.append(el(`<div class="empty">No one's at the table yet. Add the players below.</div>`));
+  const suitChars=['&spades;','&hearts;','&diams;','&clubs;'];
+  rows.forEach((r,i)=>{
+    const cls=r.net>EPS?'up':r.net<-EPS?'down':'flat';
+    const claimed = myPlayerId===r.id;        // is this my own seat?
+    // UPI is private: shown (and editable) only on your OWN seat — never on others'
+    const upiHtml = claimed
+      ? (r.upi_id
+          ? `<div class="player-upi">Your UPI: <span class="uid">${esc(r.upi_id)}</span><button class="lk" data-act="upi-edit" title="Edit UPI ID">✎</button></div>`
+          : `<div class="me-claim"><button data-act="upi-edit">＋ Add your UPI ID</button></div>`)
+      : '';
+    // signing in auto-seats you, so there's no manual claim in cloud mode;
+    // local demo (no accounts) keeps a one-tap "This is me" fallback
+    const claimHtml = claimed
+      ? `<span class="me-badge">★ You</span>`
+      : (localMode ? `<div class="me-claim"><button data-act="claim">This is me</button></div>` : '');
+    const card=el(`
+      <div class="pcard">
+        <span class="suit-wm">${suitChars[i%4]}</span>
+        <div class="who">
+          <div class="name">${esc(r.name)} ${chipStack(r.buyin)}</div>
+          <div class="stats">
+            <div class="stat"><span class="k">Buy-in</span><span class="v">${money(r.buyin)}</span></div>
+            <div class="stat"><span class="k">Cash-out</span><span class="v">${r.cashedOut?money(r.cashout):'—'}</span></div>
+          </div>
+          ${upiHtml}
+          ${claimHtml}
+        </div>
+        <div class="net ${cls}">${signMoney(r.net)}</div>
+        ${canEdit?`<div class="pactions">
+          <button class="btn dark sm" data-act="buyin">+ Buy-in</button>
+          <button class="btn dark sm" data-act="cashout">Cash out</button>
+          <button class="btn danger sm" data-act="remove">Remove</button>
+        </div>`:''}
+      </div>`);
+    // "This is me" only exists in local demo mode (cloud auto-seats you on join)
+    const claimBtn=card.querySelector('[data-act="claim"]');
+    if(claimBtn) claimBtn.onclick=async()=>{
+      localStorage.setItem('poker_me_'+s.id,r.id);
+      renderSession();
+    };
+    // UPI edit is only rendered on your own seat
+    const upiBtn=card.querySelector('[data-act="upi-edit"]');
+    if(upiBtn) upiBtn.onclick=()=>openUpiEdit(r);
+    if(canEdit){
+      card.querySelector('[data-act="buyin"]').onclick=()=>openAmount({title:'Add buy-in',sub:r.name+' buys in',player:r,onSave:a=>db.addEntry(s.id,r.id,'buyin',a)});
+      // Cash out via the chip counter (count chips → total → cash-out); the modal
+      // also has a manual amount field for when you already know the figure.
+      card.querySelector('[data-act="cashout"]').onclick=()=>openChipCounter(s, r, canEdit);
+      card.querySelector('[data-act="remove"]').onclick=()=>{
+        if(r.buyin||r.cashout){ if(!confirm(`Remove ${r.name}? This deletes their ${money(r.buyin)} buy-in and any cash-out.`)) return; }
+        db.removePlayer(r.id);
+      };
+    }
+    plist.append(card);
+  });
+  appEl.append(plist);
+
+  // add player — prefill the first seat with the signed-in user's name (usually
+  // the host seating themselves); stays empty after that so adding others is clean
+  if(canEdit){
+    const seedName = (rows.length===0 && Auth.profile && Auth.profile.display_name) ? esc(Auth.profile.display_name) : '';
+    const add=el(`<div class="addrow fade-in"><input id="pname" placeholder="Add a player…" maxlength="24" value="${seedName}"/><button class="btn" id="addP">+ Seat</button></div>`);
+    const addFn=async()=>{const n=add.querySelector('#pname').value.trim(); if(!n)return; await db.addPlayer(s.id,n); add.querySelector('#pname').value='';};
+    add.querySelector('#addP').onclick=addFn;
+    add.querySelector('#pname').addEventListener('keydown',e=>{if(e.key==='Enter')addFn();});
+    appEl.append(add);
+  }
+
+  // dealer & blinds rotation
+  const dtitle=el(`<div class="section-title"><h2>Dealer &amp; Blinds</h2><div class="ln"></div></div>`); appEl.append(dtitle);
+  const dpanel=el(`<div class="panel-felt"></div>`); appEl.append(dpanel);
+  renderDealerPanel(dpanel, players, s.id);
+
+  // end-game CTA — while playing, settlement is hidden until the host ends the game
+  if(phase==='active' && canEdit && rows.length){
+    const endBar=el(`<div class="endgame-bar fade-in"><button class="btn block" id="endGame">🏁 End game &amp; settle up</button><div class="endgame-hint">Settle-up &amp; payments appear once you end the game. You can resume anytime.</div></div>`);
+    endBar.querySelector('#endGame').onclick=async()=>{ if(confirm('End the game and move to settle-up? You can resume if the game\'s still going.')){ await db.setStatus(s.id,'ended'); toast('Game ended — time to settle up'); } };
+    appEl.append(endBar);
+  }
+
+  // edit access (owner-only): everyone who has joined, with their role. The owner
+  // promotes members to editor (can edit the ledger) or demotes them back.
+  if(isOwner && !localMode){
+    const atitle=el(`<div class="section-title"><h2>Edit Access</h2><div class="ln"></div></div>`); appEl.append(atitle);
+    const apanel=el(`<div class="panel-felt">
+      <div class="dealer-hint" style="margin:0 0 8px">Everyone who's joined this table. Editors can change buy-ins, cash-outs and settle-up; members are view-only.</div>
+      <div class="editors-list" id="memberList"></div>
+    </div>`);
+    const memberList=apanel.querySelector('#memberList');
+    const ordered=[...members].sort((a,b)=>{
+      const rank={owner:0,editor:1,member:2}; return (rank[a.role]??3)-(rank[b.role]??3);
+    });
+    ordered.forEach(m=>{
+      const isMe=m.user_id===myUid;
+      const tag = m.role==='owner' ? `<span class="tag-ok">Owner</span>`
+                : m.role==='editor' ? `<span class="tag-ok">Editor</span>` : '';
+      let btn='';
+      if(m.role==='member') btn=`<button class="btn sm" data-act="promote">Make editor</button>`;
+      else if(m.role==='editor') btn=`<button class="btn ghost sm" data-act="demote">Make view-only</button>`;
+      const row=el(`<div class="editor-row"><span>${esc(m.name)}${isMe?' <span class="me-badge">★ You</span>':''}</span><span style="display:flex;gap:8px;align-items:center">${tag}${btn}</span></div>`);
+      const pb=row.querySelector('[data-act="promote"]');
+      if(pb) pb.onclick=async()=>{ try{ await db.grantEditor(s.id,m.user_id); toast(m.name+' can now edit'); renderSession(); }catch(e){ toast(e.message||'Could not grant'); } };
+      const db_=row.querySelector('[data-act="demote"]');
+      if(db_) db_.onclick=async()=>{ if(!confirm(`Make ${m.name} view-only? They'll no longer be able to edit the ledger.`)) return; try{ await db.revokeEditor(s.id,m.user_id); toast(m.name+' is now view-only'); renderSession(); }catch(e){ toast(e.message||'Could not change'); } };
+      memberList.append(row);
+    });
+    if(members.length<=1) memberList.append(el(`<div class="empty" style="padding:6px 0">No one else has joined yet. Share the table code so they can take a seat.</div>`));
+    appEl.append(apanel);
+  }
+
+  // settlement — only once the game has ended (phase 'ended' or 'settled')
+  if(rows.length && settling){
+    const stitle=el(`<div class="section-title"><h2>The Settle-Up</h2><div class="ln"></div></div>`); appEl.append(stitle);
+    const sg=el(`<div class="settle-grid"></div>`);
+
+    // net positions
+    const sorted=[...rows].sort((a,b)=>b.net-a.net);
+    const netPanel=el(`<div class="panel-felt"><div class="eyebrow" style="margin-bottom:10px">Net Position</div><div class="ledger-list" id="nets"></div></div>`);
+    const nl=netPanel.querySelector('#nets');
+    sorted.forEach(r=>{
+      const cls=r.net>EPS?'up':r.net<-EPS?'down':'';
+      nl.append(el(`<div class="ledger-row"><span class="nm">${esc(r.name)}</span><span class="amt ${cls} mono">${signMoney(r.net)}</span></div>`));
+    });
+
+    // personalized settle-up: each device sees only ITS OWN payments — what you
+    // owe (with pay/QR) and what's owed to you (amounts only). The full picture
+    // is in the downloadable report; nobody sees unrelated players' UPI/QR.
+    const tPanel=el(`<div class="panel-felt"><div class="eyebrow" style="margin-bottom:10px">Your Settle-Up</div><div id="transfers"></div></div>`);
+    const tl=tPanel.querySelector('#transfers');
+    const renderPayRow=(t)=>{   // a transfer where I'm the payer
+      const row=el(`<div class="transfer">
+        <div class="transfer-main"><span class="from">You</span><span class="arrow">— pay →</span><span class="to">${esc(t.to)}</span><span class="pay mono">${money(t.amt)}</span></div>
+        <div class="transfer-pay"></div>
+      </div>`);
+      const payRow=row.querySelector('.transfer-pay');
+      if(t.toUpi){
+        const link=buildUpiLink({pa:t.toUpi,pn:t.to,am:t.amt,tn:'Poker settlement'});
+        const pay=el(`<a class="btn sm" href="${esc(link)}">Pay ${money(t.amt)} ▸</a>`);
+        const qr=el(`<button class="btn ghost sm">▢ QR</button>`); qr.onclick=()=>openUpiQR(t);
+        // Manual fallback: copy the UPI ID and pay it as a normal contact in any
+        // app. This sidesteps app-specific intent/QR/gallery caps (e.g. PhonePe's
+        // ₹2,000 gallery-QR limit) and uses the full P2P limit.
+        const copy=el(`<button class="btn ghost sm" title="Copy ${esc(t.toUpi)}">⧉ Copy UPI ID</button>`);
+        copy.onclick=()=>{ navigator.clipboard?.writeText(t.toUpi).then(()=>toast('UPI ID copied — paste in any UPI app'),()=>toast(t.toUpi)); };
+        payRow.append(pay,qr,copy);
+      } else {
+        payRow.append(el(`<span class="nopay">${esc(t.to)} hasn't added a UPI ID — pay in cash</span>`));
+      }
+      return row;
+    };
+    if(!transfers.length){
+      tl.append(el(`<div class="settled-msg">${totalBuyin>0?'♠ All square — nobody owes a rupee.':'Add buy-ins to begin.'}</div>`));
+    } else if(!myPlayerId){
+      tl.append(el(`<div class="settled-msg">${localMode?'Tap <b>“This is me”</b> on your seat above to see what you owe and who owes you.':'Rejoin this table to see your personal settle-up.'}</div>`));
+    } else {
+      const youOwe=transfers.filter(t=>t.fromId===myPlayerId);
+      const owedToYou=transfers.filter(t=>t.toId===myPlayerId);
+      const meRow=rows.find(r=>r.id===myPlayerId);
+      if(!youOwe.length && !owedToYou.length){
+        tl.append(el(`<div class="settled-msg">✓ You're all settled — nothing to pay or collect.</div>`));
+      }
+      if(youOwe.length){
+        tl.append(el(`<div class="settle-sub">You owe</div>`));
+        youOwe.forEach(t=>tl.append(renderPayRow(t)));
+      }
+      if(owedToYou.length){
+        tl.append(el(`<div class="settle-sub">Owed to you</div>`));
+        owedToYou.forEach(t=>tl.append(el(`<div class="transfer"><div class="transfer-main"><span class="from">${esc(t.from)}</span><span class="arrow">— pays you →</span><span class="pay mono">${money(t.amt)}</span></div></div>`)));
+        if(meRow && !meRow.upi_id){
+          const addb=el(`<div class="transfer-pay" style="margin-top:8px"><span class="nopay">Add your UPI ID so they can pay you in one tap.</span></div>`);
+          const b=el(`<button class="btn ghost sm">＋ Add yours</button>`); b.onclick=()=>openUpiEdit(meRow); addb.append(b);
+          tl.append(addb);
+        }
+      }
+    }
+    if(transfers.length && !balanced) tl.append(el(`<div class="balance-note" style="margin:12px 0 0">Provisional — finish counting chips to lock this in.</div>`));
+    sg.append(netPanel,tPanel);
+    appEl.append(sg);
+
+    // phase controls + share
+    const settleBar=el(`<div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;justify-content:center">
+      <button class="btn ghost" id="dlReport">⤓ Report (PDF)</button>
+      <button class="btn dark" id="shareWa">Share to WhatsApp ⮞</button>
+      ${canEdit && phase==='ended'?`<button class="btn ghost" id="resume">↩ Resume game</button><button class="btn" id="markSettled" ${balanced?'':'disabled'}>♛ Mark night settled</button>`:''}
+      ${canEdit && phase==='settled'?`<button class="btn ghost" id="reopen">↺ Re-open night</button>`:''}
+    </div>`);
+    settleBar.querySelector('#dlReport').onclick=()=>{ downloadReport(s, rows, transfers, totalBuyin, totalCashout, balanced); toast('Building report…'); };
+    settleBar.querySelector('#shareWa').onclick=()=>{
+      const text=settlementText(s, sorted, transfers, totalBuyin, balanced);
+      window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank');
+    };
+    if(canEdit && phase==='ended'){
+      settleBar.querySelector('#resume').onclick=async()=>{await db.setStatus(s.id,'active');toast('Back to playing');};
+      settleBar.querySelector('#markSettled').onclick=async()=>{await db.setStatus(s.id,'settled');toast('Night settled — saved to history');};
+    }
+    if(canEdit && phase==='settled') settleBar.querySelector('#reopen').onclick=async()=>{await db.setStatus(s.id,'ended');toast('Re-opened for settling');};
+    appEl.append(settleBar);
+  }
+
+  // activity log
+  if(entries.length){
+    const ltitle=el(`<div class="section-title"><h2>Activity</h2><div class="ln"></div></div>`); appEl.append(ltitle);
+    const logPanel=el(`<div class="panel-felt"><div class="log" id="log"></div></div>`);
+    const log=logPanel.querySelector('#log');
+    const pmap=new Map(players.map(p=>[p.id,p.name]));
+    [...entries].reverse().forEach(e=>{
+      const row=el(`
+        <div class="logrow">
+          <span class="badge ${e.type}">${e.type==='buyin'?'Buy-in':'Cash-out'}</span>
+          <span class="lname">${esc(pmap.get(e.player_id)||'—')}</span>
+          <span class="lamt mono">${money(e.amount)}</span>
+          <span class="lact">${canEdit?`<button class="iconbtn" title="Edit">✎</button><button class="iconbtn del" title="Delete">✕</button>`:''}</span>
+        </div>`);
+      if(canEdit){
+        row.querySelector('.iconbtn:not(.del)').onclick=()=>openAmount({title:'Edit entry',sub:(pmap.get(e.player_id)||'')+' · '+(e.type==='buyin'?'buy-in':'cash-out'),defaultVal:e.amount,onSave:a=>db.updateEntry(e.id,a)});
+        row.querySelector('.del').onclick=()=>{ if(confirm('Delete this '+e.type+' of '+money(e.amount)+'?')) db.deleteEntry(e.id); };
+      }
+      log.append(row);
+    });
+    appEl.append(logPanel);
+  }
+
+  // live subscription: any change to this table's rows (incl. session_members
+  // role grants/revokes) re-renders, so editor access flips live with no reload.
+  App.unsub=db.subscribe(s.id,()=>{ if(App.view==='session'&&App.sessionId===s.id) renderSession(); });
+}
+
+/* ---------- HISTORY / LEADERBOARD ---------- */
+async function renderHistory(){
+  const sessions=await db.listSessions();
+  appEl.innerHTML='';
+  const back=el(`<button class="back">← Back</button>`); back.onclick=()=>go('lobby'); appEl.append(back);
+
+  // aggregate leaderboard across SETTLED nights
+  const agg=new Map(); // name -> {net, nights}
+  let anySettled=false;
+  for(const s of sessions){
+    if(s.status!=='settled') continue; anySettled=true;
+    const {rows}=tally(await db.getPlayers(s.id), await db.getEntries(s.id));
+    rows.forEach(r=>{
+      const key=r.name.trim().toLowerCase();
+      const cur=agg.get(key)||{name:r.name,net:0,nights:0};
+      cur.net=round2(cur.net+r.net); cur.nights++; agg.set(key,cur);
+    });
+  }
+  const board=[...agg.values()].sort((a,b)=>b.net-a.net);
+
+  const lbPanel=el(`<div class="panel-felt fade-in"><div class="section-title" style="margin-top:0"><h2>All-Time Leaderboard</h2><div class="ln"></div></div><div id="lb"></div></div>`);
+  const lb=lbPanel.querySelector('#lb');
+  if(!board.length){ lb.append(el(`<div class="empty">No settled nights yet. Mark a night as settled to build the leaderboard.</div>`)); }
+  board.forEach((r,i)=>{
+    const cls=r.net>EPS?'up':r.net<-EPS?'down':'';
+    lb.append(el(`<div class="lb-row">
+      <div class="lb-rank ${i===0?'gold':''}">${i===0?'♛':i+1}</div>
+      <div class="lb-name">${esc(r.name)}</div>
+      <div class="lb-meta">${r.nights} night${r.nights>1?'s':''}</div>
+      <div class="lb-net amt ${cls} mono">${signMoney(r.net)}</div>
+    </div>`));
+  });
+  appEl.append(lbPanel);
+
+  // all nights
+  const allPanel=el(`<div class="panel-felt fade-in d1" style="margin-top:18px"><div class="section-title" style="margin-top:0"><h2>All Nights</h2><div class="ln"></div>${sessions.length?'<button class="btn danger sm" id="clearAllHist">Clear all ✕</button>':''}</div><div id="all"></div></div>`);
+  const all=allPanel.querySelector('#all');
+  if(!sessions.length) all.append(el(`<div class="empty">No nights recorded yet.</div>`));
+  allPanel.querySelector('#clearAllHist')?.addEventListener('click',async()=>{
+    if(confirm(`Delete all ${sessions.length} saved night(s) permanently? This removes them for everyone and cannot be undone.`)){
+      for(const x of sessions) await db.deleteSession(x.id);
+      toast('History cleared'); renderHistory();
+    }
+  });
+  for(const s of sessions){
+    const {rows,totalBuyin}=tally(await db.getPlayers(s.id), await db.getEntries(s.id));
+    const row=el(`<div class="hist-row">
+      <div>
+        <div class="hi-name">${esc(s.name)}</div>
+        <div class="hi-meta">${fmtDate(s.created_at)} · ${rows.length} players · ${money(totalBuyin)} pot · code ${esc(s.code)}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="hi-status ${s.status}">${s.status==='ended'?'settling':s.status}</div>
+        <button class="iconbtn del" title="Delete night">✕</button>
+      </div>
+    </div>`);
+    row.onclick=(e)=>{ if(e.target.closest('.del'))return; go('session',s.id); };
+    row.querySelector('.del').onclick=async(e)=>{ e.stopPropagation(); if(confirm('Delete "'+s.name+'" permanently?')){ await db.deleteSession(s.id); renderHistory(); } };
+    all.append(row);
+  }
+  appEl.append(allPanel);
+}
+
+/* ---------- PROFILE (signed-in user: name + UPI, auto-filled everywhere) ---------- */
+function openProfileModal(firstTime){
+  const host=$('#modal-host'); const scrim=$('#scrim');
+  const p=Auth.profile||{};
+  const m=el(`
+    <div class="panel modal">
+      <h3>${firstTime?'Welcome — set up your profile':'Your profile'}</h3>
+      <p class="msub">Your name shows when you join a game; your UPI ID lets others pay you in one tap. Saved to your account, so you won't re-enter it each night.</p>
+      <label class="field-label">Display name</label>
+      <input class="amt" id="pfName" placeholder="Your name" value="${esc(p.display_name||'')}" />
+      <label class="field-label" style="margin-top:10px">UPI ID${firstTime?' (recommended)':' (optional)'}</label>
+      <input class="amt" id="pfUpi" inputmode="email" placeholder="yourname@bank" value="${esc(p.upi_id||'')}" style="font-family:'JetBrains Mono',monospace;font-size:1rem" />
+      <div class="profile-nudge">💡 Add your UPI ID now and friends can settle up with you in one tap — you won't have to type it every game.</div>
+      <div class="mactions">
+        ${firstTime?'':'<button class="btn ghost" id="cancel" style="flex:1">Cancel</button>'}
+        <button class="btn" id="save" style="flex:1.4">${firstTime?'Save & continue':'Save'}</button>
+      </div>
+    </div>`);
+  const close=()=>{scrim.classList.remove('show');setTimeout(()=>host.innerHTML='',200);document.removeEventListener('keydown',onKey);};
+  const save=async()=>{
+    const name=m.querySelector('#pfName').value.trim();
+    const upi=m.querySelector('#pfUpi').value.trim();
+    if(!name){ toast('Enter a display name'); return; }
+    if(upi && !validVpa(upi)){ toast('UPI ID looks like name@bank'); return; }
+    // first-time, no UPI: insist once before letting them skip
+    if(firstTime && !upi){
+      if(!confirm("Add your UPI ID so friends can pay you in one tap at settle-up — and you'll never re-enter it. Continue without it for now?")){ m.querySelector('#pfUpi').focus(); return; }
+    }
+    const { data }=await supa.from('profiles').upsert({id:Auth.user.id,display_name:name,upi_id:upi||null}).select().single();
+    Auth.profile=data||{...p,display_name:name,upi_id:upi||null};
+    localStorage.setItem('poker_device_name',name);
+    toast('Profile saved'); close(); render();
+  };
+  if(m.querySelector('#cancel')) m.querySelector('#cancel').onclick=close;
+  m.querySelector('#save').onclick=save;
+  const onKey=(e)=>{ if(e.key==='Escape'&&!firstTime)close(); };
+  document.addEventListener('keydown',onKey);
+  if(!firstTime) scrim.onclick=(e)=>{ if(e.target===scrim)close(); }; else scrim.onclick=null;
+  host.innerHTML=''; host.append(m); scrim.classList.add('show'); setTimeout(()=>m.querySelector('#pfName').focus(),60);
+}
+
+/* ---------- AMOUNT MODAL ---------- */
+function openAmount({title,sub,defaultVal='',player=null,replaceCashout=false,onSave}){
+  const host=$('#modal-host'); const scrim=$('#scrim');
+  const quick=[100,200,500,1000,2000];
+  const m=el(`
+    <div class="panel modal">
+      <h3>${esc(title)}</h3>
+      <p class="msub">${esc(sub||'')}</p>
+      <label class="field-label">Amount (₹)</label>
+      <input class="amt" id="amtIn" inputmode="decimal" placeholder="0" value="${defaultVal!==''?defaultVal:''}" />
+      <div class="quick-amts">${quick.map(q=>`<span class="qa" data-q="${q}">+${q}</span>`).join('')}</div>
+      <div class="mactions">
+        <button class="btn ghost" id="cancel" style="flex:1">Cancel</button>
+        <button class="btn" id="save" style="flex:1.4">Save</button>
+      </div>
+    </div>`);
+  const input=m.querySelector('#amtIn');
+  m.querySelectorAll('.qa').forEach(b=>b.onclick=()=>{ const add=Number(b.dataset.q); input.value=replaceCashout?String(round2((Number(input.value)||0)+add)):String(round2((Number(input.value)||0)+add)); input.focus(); });
+  const close=()=>{scrim.classList.remove('show');setTimeout(()=>host.innerHTML='',200);document.removeEventListener('keydown',onKey);};
+  const save=async()=>{ const a=Number(input.value); if(isNaN(a)||a<0){toast('Enter a valid amount');return;} await onSave(round2(a)); close(); };
+  m.querySelector('#cancel').onclick=close;
+  m.querySelector('#save').onclick=save;
+  const onKey=(e)=>{ if(e.key==='Escape')close(); if(e.key==='Enter')save(); };
+  document.addEventListener('keydown',onKey);
+  scrim.onclick=(e)=>{ if(e.target===scrim)close(); };
+  host.innerHTML=''; host.append(m); scrim.classList.add('show'); setTimeout(()=>input.focus(),60);
+}
+
+/* ---------- CHIP COUNTER ----------
+   Optional. Define a per-game chip set (value + colour), count chips with
+   steppers, and (for a player) save the running total as their cash-out. */
+function openChipCounter(s, player, canEdit){
+  const host=$('#modal-host'); const scrim=$('#scrim');
+  let config = chipSet(s);
+  let counts = config.map(()=>0);
+  let editing = false;
+  const m=el(`
+    <div class="panel modal chip-modal">
+      <h3>${player?('Cash out '+esc(player.name)):'Chip Counter'}</h3>
+      <p class="msub">${player?'Count the chips below — the total becomes the cash-out. ':'Count chips to total them up. '}${canEdit?'Tap ⚙ Edit chips to set your own denominations &amp; colours.':''}</p>
+      ${player?`<label class="field-label">Cash-out amount (₹)</label><input class="amt" id="coAmt" inputmode="decimal" value="${player.cashout||''}" placeholder="0">`:''}
+      <div id="chipList" class="chip-list"></div>
+      <div class="chip-total"><span>Chip total</span><span id="chipTotal" class="mono">${money(0)}</span></div>
+      <div class="mactions" id="chipActions"></div>
+    </div>`);
+  const listEl=m.querySelector('#chipList');
+  const totalEl=m.querySelector('#chipTotal');
+  const actionsEl=m.querySelector('#chipActions');
+  const coAmt=m.querySelector('#coAmt');
+  const grand=()=>round2(config.reduce((t,c,i)=>t+c.value*(counts[i]||0),0));
+  const refreshTotal=()=>{ const g=grand(); totalEl.textContent=money(g); if(coAmt) coAmt.value=String(g); };
+
+  function renderList(){
+    listEl.innerHTML='';
+    config.forEach((c,i)=>{
+      if(editing){
+        const row=el(`<div class="chip-row edit">
+          <input type="color" class="chip-color" value="${esc(c.color)}" title="Chip colour">
+          <span class="chip-eqv">₹</span>
+          <input class="chip-val" type="number" min="1" inputmode="numeric" value="${c.value}" title="Chip value">
+          <button class="iconbtn del" type="button" title="Remove">✕</button>
+        </div>`);
+        row.querySelector('.chip-color').oninput=e=>{ c.color=e.target.value; };
+        row.querySelector('.chip-val').oninput=e=>{ c.value=Math.max(0,Number(e.target.value)||0); };
+        row.querySelector('.del').onclick=()=>{ config.splice(i,1); counts.splice(i,1); renderList(); };
+        listEl.append(row);
+      } else {
+        const row=el(`<div class="chip-row">
+          <span class="chip-disc" style="background:${esc(c.color)};color:${chipInk(c.color)}">${c.value}</span>
+          <div class="chip-mid"><div class="chip-den">₹${c.value} chip</div><div class="chip-sub" data-sub></div></div>
+          <div class="chip-step"><button class="chip-minus" type="button">−</button><input class="chip-cnt" inputmode="numeric" value="${counts[i]||0}"><button class="chip-plus" type="button">+</button></div>
+        </div>`);
+        const subEl=row.querySelector('[data-sub]');
+        const cntEl=row.querySelector('.chip-cnt');
+        const paintSub=()=>{ subEl.innerHTML=`${counts[i]||0} × ₹${c.value} = <b>${money(round2(c.value*(counts[i]||0)))}</b>`; };
+        const set=(v)=>{ counts[i]=Math.max(0,Math.floor(Number(v)||0)); cntEl.value=counts[i]; paintSub(); refreshTotal(); };
+        row.querySelector('.chip-minus').onclick=()=>set((counts[i]||0)-1);
+        row.querySelector('.chip-plus').onclick=()=>set((counts[i]||0)+1);
+        cntEl.oninput=()=>set(cntEl.value);
+        paintSub();
+        listEl.append(row);
+      }
+    });
+    if(editing){
+      const add=el(`<button class="btn ghost sm chip-add" type="button">+ Add denomination</button>`);
+      add.onclick=()=>{ config.push({value:0,color:'#cccccc'}); counts.push(0); renderList(); };
+      listEl.append(add);
+    }
+    renderActions();
+    refreshTotal();
+  }
+  function renderActions(){
+    actionsEl.innerHTML='';
+    if(editing){
+      const done=el(`<button class="btn" type="button" style="flex:1">Done</button>`);
+      done.onclick=async()=>{
+        config=config.filter(c=>c.value>0);
+        if(!config.length) config=DEFAULT_CHIPS.map(x=>({...x}));
+        counts=config.map((_,i)=>counts[i]||0);
+        editing=false;
+        if(canEdit){ try{ await db.setChipConfig(s.id,config); s.chip_config=config; }catch(e){} }
+        renderList();
+      };
+      actionsEl.append(done);
+      return;
+    }
+    if(canEdit){ const edit=el(`<button class="btn ghost" type="button" style="flex:1">⚙ Edit chips</button>`); edit.onclick=()=>{ editing=true; renderList(); }; actionsEl.append(edit); }
+    const close=el(`<button class="btn ghost" type="button" style="flex:1">${player?'Cancel':'Close'}</button>`); close.onclick=closeM; actionsEl.append(close);
+    if(player && canEdit){
+      const save=el(`<button class="btn" type="button" style="flex:1.4">Save cash-out</button>`);
+      save.onclick=async()=>{
+        const a=round2(Number(coAmt?coAmt.value:grand())||0);
+        if(isNaN(a)||a<0){ toast('Enter a valid amount'); return; }
+        const es=(await db.getEntries(s.id)).filter(e=>e.player_id===player.id&&e.type==='cashout');
+        for(const e of es) await db.deleteEntry(e.id);
+        await db.addEntry(s.id,player.id,'cashout',a);
+        toast(player.name+' cashed out '+money(a)); closeM();
+      };
+      actionsEl.append(save);
+    }
+  }
+  const closeM=()=>{scrim.classList.remove('show');setTimeout(()=>host.innerHTML='',200);document.removeEventListener('keydown',onKey);};
+  const onKey=(e)=>{ if(e.key==='Escape')closeM(); };
+  document.addEventListener('keydown',onKey);
+  scrim.onclick=(e)=>{ if(e.target===scrim)closeM(); };
+  renderList();
+  host.innerHTML=''; host.append(m); scrim.classList.add('show');
+}
+
+/* ---------- UPI: set a player's ID, and show a pay QR ---------- */
+function openUpiEdit(player){
+  const host=$('#modal-host'); const scrim=$('#scrim');
+  const m=el(`
+    <div class="panel modal">
+      <h3>UPI ID for ${esc(player.name)}</h3>
+      <p class="msub">So others can pay ${esc(player.name)} in one tap at settle-up. It's just a receiving handle (e.g. name@okhdfcbank), not a password.</p>
+      <input class="amt" id="vpaIn" inputmode="email" placeholder="yourname@bank" value="${esc(player.upi_id||'')}" style="font-family:'JetBrains Mono',monospace;font-size:1rem" />
+      <div class="mactions">
+        ${player.upi_id?`<button class="btn ghost danger" id="clear" style="flex:1">Remove</button>`:`<button class="btn ghost" id="cancel" style="flex:1">Cancel</button>`}
+        <button class="btn" id="save" style="flex:1.4">Save</button>
+      </div>
+    </div>`);
+  const input=m.querySelector('#vpaIn');
+  const close=()=>{scrim.classList.remove('show');setTimeout(()=>host.innerHTML='',200);document.removeEventListener('keydown',onKey);};
+  const save=async()=>{ const v=input.value.trim(); if(!validVpa(v)){toast('Enter a valid UPI ID (name@bank)');return;} await db.setPlayerUpi(player.id,v); toast('UPI ID saved'); close(); };
+  if(m.querySelector('#cancel')) m.querySelector('#cancel').onclick=close;
+  if(m.querySelector('#clear')) m.querySelector('#clear').onclick=async()=>{ await db.setPlayerUpi(player.id,null); toast('UPI ID removed'); close(); };
+  m.querySelector('#save').onclick=save;
+  const onKey=(e)=>{ if(e.key==='Escape')close(); if(e.key==='Enter')save(); };
+  document.addEventListener('keydown',onKey);
+  scrim.onclick=(e)=>{ if(e.target===scrim)close(); };
+  host.innerHTML=''; host.append(m); scrim.classList.add('show'); setTimeout(()=>input.focus(),60);
+}
+function openUpiQR(t){
+  const host=$('#modal-host'); const scrim=$('#scrim');
+  const link=buildUpiLink({pa:t.toUpi,pn:t.to,am:t.amt,tn:'Poker settlement'});
+  let qrHtml='';
+  try{ if(typeof qrcode==='function'){ const q=qrcode(0,'M'); q.addData(link); q.make(); qrHtml=`<div class="qr-box">${q.createSvgTag({cellSize:5,margin:2,scalable:true})}</div>`; } }catch(e){ qrHtml=''; }
+  const m=el(`
+    <div class="panel modal">
+      <h3>Pay ${esc(t.to)} ${money(t.amt)}</h3>
+      <p class="msub">Live-scan this with another phone's camera, or tap Open UPI app.</p>
+      ${qrHtml||`<div class="balance-note" style="margin:4px 0 12px">QR couldn't load — use the button below or pay this UPI ID manually.</div>`}
+      <div class="qr-vpa" id="qrVpa" title="Tap to copy" style="cursor:pointer">${esc(t.toUpi)} ⧉</div>
+      <div class="qr-note">Over ₹2,000, or scanning a screenshot / from the same phone? UPI apps cap that at ₹2,000 — tap the UPI ID above to copy it and pay manually (full limit).</div>
+      <div class="mactions">
+        <button class="btn ghost" id="cancel" style="flex:1">Close</button>
+        <a class="btn" id="openupi" href="${esc(link)}" style="flex:1.4;text-decoration:none;text-align:center">Open UPI app ▸</a>
+      </div>
+    </div>`);
+  const close=()=>{scrim.classList.remove('show');setTimeout(()=>host.innerHTML='',200);document.removeEventListener('keydown',onKey);};
+  m.querySelector('#cancel').onclick=close;
+  m.querySelector('#qrVpa').onclick=()=>{ navigator.clipboard?.writeText(t.toUpi).then(()=>toast('UPI ID copied — paste in any UPI app'),()=>toast(t.toUpi)); };
+  const onKey=(e)=>{ if(e.key==='Escape')close(); };
+  document.addEventListener('keydown',onKey);
+  scrim.onclick=(e)=>{ if(e.target===scrim)close(); };
+  host.innerHTML=''; host.append(m); scrim.classList.add('show');
+}
+
+/* ---------- HAND RANKINGS REFERENCE ---------- */
+const HANDS=[
+  {n:'Royal Flush',  b:'A-K-Q-J-10, all the same suit. The unbeatable hand.', c:[['A','s'],['K','s'],['Q','s'],['J','s'],['10','s']]},
+  {n:'Straight Flush',b:'Five cards in a row, all the same suit.',            c:[['9','h'],['8','h'],['7','h'],['6','h'],['5','h']]},
+  {n:'Four of a Kind',b:'All four cards of one rank.',                         c:[['Q','s'],['Q','h'],['Q','d'],['Q','c'],['7','s']]},
+  {n:'Full House',   b:'Three of a kind plus a pair.',                        c:[['J','s'],['J','h'],['J','d'],['4','c'],['4','s']]},
+  {n:'Flush',        b:'Any five cards of one suit, not in sequence.',        c:[['A','d'],['J','d'],['8','d'],['6','d'],['3','d']]},
+  {n:'Straight',     b:'Five cards in sequence, mixed suits.',                c:[['10','s'],['9','h'],['8','s'],['7','d'],['6','c']]},
+  {n:'Three of a Kind',b:'Three cards of the same rank.',                     c:[['8','s'],['8','h'],['8','d'],['K','c'],['2','s']]},
+  {n:'Two Pair',     b:'Two different pairs.',                                c:[['A','s'],['A','h'],['9','d'],['9','c'],['4','s']]},
+  {n:'One Pair',     b:'Two cards of the same rank.',                         c:[['10','h'],['10','s'],['K','d'],['6','c'],['3','s']]},
+  {n:'High Card',    b:'No combination — the highest card plays.',            c:[['A','c'],['J','s'],['9','h'],['5','d'],['2','c']]},
+];
+const SUIT_GLYPH={s:'♠',h:'♥',d:'♦',c:'♣'};
+function card([rank,suit]){ const red=(suit==='h'||suit==='d'); return `<span class="pcd ${red?'red':''}"><b>${rank}</b><span class="su">${SUIT_GLYPH[suit]}</span></span>`; }
+function openHandRankings(){
+  const host=$('#modal-host'); const scrim=$('#scrim');
+  const rowsHtml=HANDS.map((h,i)=>`
+    <div class="hand-row">
+      <div class="hand-rank">${i+1}</div>
+      <div class="hand-info">
+        <div class="hand-name">${h.n}</div>
+        <div class="hand-blurb">${h.b}</div>
+        <div class="hand-cards">${h.c.map(card).join('')}</div>
+      </div>
+    </div>`).join('');
+  const m=el(`
+    <div class="panel modal modal-lg">
+      <div class="hands-head">
+        <h3>♠ Poker Hand Rankings</h3>
+        <button class="iconbtn" id="closeHands" title="Close">✕</button>
+      </div>
+      <div class="hands-sub">Strongest at the top (1) to weakest (10). When two players have the same type of hand, the higher cards win.</div>
+      <div class="hands-list">${rowsHtml}</div>
+      <div class="hands-foot">Aces play high or low — A-2-3-4-5 is the lowest straight (“the wheel”). Suits never break a tie; the pot is split.</div>
+    </div>`);
+  const close=()=>{ scrim.classList.remove('show'); setTimeout(()=>host.innerHTML='',200); document.removeEventListener('keydown',onKey); };
+  const onKey=(e)=>{ if(e.key==='Escape')close(); };
+  m.querySelector('#closeHands').onclick=close;
+  document.addEventListener('keydown',onKey);
+  scrim.onclick=(e)=>{ if(e.target===scrim)close(); };
+  host.innerHTML=''; host.append(m); scrim.classList.add('show');
+}
+
+/* ---------- DEALER & BLINDS ROTATION (per-device, persists in localStorage) ---------- */
+function renderDealerPanel(host, players, sid){
+  host.innerHTML='';
+  if(players.length<2){
+    host.append(el(`<div class="empty" style="padding:14px">Seat at least 2 players to track the dealer button.</div>`));
+    return;
+  }
+  const n=players.length, key='poker_dealer_'+sid;
+  let d=parseInt(localStorage.getItem(key)||'0',10); if(isNaN(d))d=0; d=((d%n)+n)%n;
+  const heads=(n===2);
+  const sb = heads ? d : (d+1)%n;
+  const bb = heads ? (d+1)%n : (d+2)%n;
+  const seats=el(`<div class="seats"></div>`);
+  players.forEach((p,i)=>{
+    const badges=[];
+    if(i===d) badges.push('<span class="bdg d">D</span>');
+    if(i===sb) badges.push('<span class="bdg sb">SB</span>');
+    if(i===bb) badges.push('<span class="bdg bb">BB</span>');
+    const seat=el(`<button class="seat ${i===d?'isd':''}" title="Set ${esc(p.name)} as dealer">
+      <span class="seat-name">${esc(p.name)}</span>
+      <span class="seat-badges">${badges.join('')}</span>
+    </button>`);
+    seat.onclick=()=>{ localStorage.setItem(key,String(i)); renderDealerPanel(host,players,sid); };
+    seats.append(seat);
+  });
+  host.append(seats);
+  const ctrl=el(`<div class="dealer-ctrl">
+    <span class="dealer-hint">Tap a player to set the dealer · <b>D</b> dealer · <b>SB</b>/<b>BB</b> blinds</span>
+    <button class="btn sm" id="nextHand">Next hand →</button>
+  </div>`);
+  ctrl.querySelector('#nextHand').onclick=()=>{ localStorage.setItem(key,String((d+1)%n)); renderDealerPanel(host,players,sid); };
+  host.append(ctrl);
+}
+
+/* ---------- WHATSAPP SETTLEMENT SUMMARY ---------- */
+function settlementText(s, sortedNets, transfers, totalBuyin, balanced){
+  const L=[];
+  L.push('🃏 '+s.name+' — Settlement');
+  L.push(fmtDate(s.created_at));
+  L.push('');
+  L.push('Net result:');
+  sortedNets.forEach(r=>L.push('• '+r.name+'  '+signMoney(r.net)));
+  L.push('');
+  if(transfers.length){
+    L.push('Settle up:');
+    transfers.forEach(t=>L.push('• '+t.from+' → '+t.to+'  '+money(t.amt)+(t.toUpi?'  ('+t.toUpi+')':'')));
+  } else {
+    L.push(totalBuyin>0 ? '✅ All square — nobody owes anything.' : 'No buy-ins recorded yet.');
+  }
+  if(!balanced && totalBuyin>0) L.push('\n⚠️ Provisional — chips still being counted.');
+  L.push('');
+  L.push('Tracked on The House Ledger');
+  return L.join('\n');
+}
+
+/* ---------- DOWNLOADABLE SETTLEMENT REPORT (PDF) ----------
+   Full, everyone-can-verify breakdown: per-player buy-in/cash-out/net, the
+   complete who-pays-whom, and a plain-English note on how it's derived. Builds
+   a real one-tap PDF via jsPDF; if the lib didn't load, opens a print window. */
+function downloadReport(s, rows, transfers, totalBuyin, totalCashout, balanced){
+  const rs=(n)=>'Rs '+Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:2});
+  const rsSign=(n)=>(n>0?'+':n<0?'-':'')+rs(Math.abs(Number(n||0)));
+  const sorted=[...rows].sort((a,b)=>b.net-a.net);
+  const onTable=round2(totalBuyin-totalCashout);
+  const statusLabel = s.status==='settled'?'Settled':s.status==='ended'?'Settling':'In progress';
+  const gen=new Date().toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'});
+  const calcNote="Each player's net is the chips they cashed out minus the money they bought in. A negative net means they owe; a positive net means they're owed. To settle, the app repeatedly matches the biggest debtor with the biggest creditor — this clears everyone in the fewest possible payments. Since every rupee bought in is cashed out by someone, all nets add up to zero, so the payments below balance exactly.";
+  const lib = window.jspdf && window.jspdf.jsPDF;
+  if(!lib){ printReportFallback(s,sorted,transfers,totalBuyin,totalCashout,balanced,statusLabel,gen); return; }
+
+  const doc=new lib({unit:'pt',format:'a4'});
+  let y=56; const left=56, rightX=539;
+  const line=()=>{ doc.setDrawColor(205); doc.line(left,y,rightX,y); };
+  const nl=(h)=>{ y+=(h==null?16:h); if(y>790){ doc.addPage(); y=56; } };
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(20); doc.setTextColor(20); doc.text('The House Ledger', left, y);
+  nl(20); doc.setFont('helvetica','normal'); doc.setFontSize(12); doc.setTextColor(90); doc.text('Settlement Report', left, y);
+  nl(22); doc.setFontSize(10); doc.text(String(s.name)+'   .   '+fmtDate(s.created_at)+'   .   Table '+s.code+'   .   '+statusLabel, left, y);
+  nl(10); line(); nl(24);
+
+  // per-player table
+  doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(20);
+  doc.text('Player', left, y); doc.text('Buy-in',320,y,{align:'right'}); doc.text('Cash-out',430,y,{align:'right'}); doc.text('Net',rightX,y,{align:'right'});
+  nl(7); line(); nl(18); doc.setFont('helvetica','normal');
+  sorted.forEach(r=>{
+    doc.setTextColor(20); doc.text(String(r.name), left, y);
+    doc.text(rs(r.buyin),320,y,{align:'right'});
+    doc.text(r.cashedOut?rs(r.cashout):'-',430,y,{align:'right'});
+    doc.setTextColor(r.net>EPS?20:(r.net<-EPS?176:120)); doc.text(rsSign(r.net),rightX,y,{align:'right'});
+    nl(18);
+  });
+  nl(2); line(); nl(18);
+  doc.setFont('helvetica','bold'); doc.setTextColor(20); doc.text('Totals', left, y);
+  doc.text(rs(totalBuyin),320,y,{align:'right'}); doc.text(rs(totalCashout),430,y,{align:'right'});
+  nl(15); doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(90);
+  doc.text(balanced?('Pot balanced - money in ('+rs(totalBuyin)+') equals chips out ('+rs(totalCashout)+').'):('Provisional - '+rs(onTable)+' in chips not yet counted.'), left, y);
+
+  // settle-up
+  nl(30); doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(20); doc.text('Settle-up - fewest payments', left, y);
+  nl(8); line(); nl(18); doc.setFont('helvetica','normal'); doc.setFontSize(10);
+  if(!transfers.length){ doc.text('All square - nobody owes anything.', left, y); nl(); }
+  else transfers.forEach(t=>{ doc.setTextColor(20); doc.text(String(t.from)+'  pays  '+String(t.to), left, y); doc.text(rs(t.amt),rightX,y,{align:'right'}); nl(18); });
+
+  // how it's calculated
+  nl(16); doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(20); doc.text('How this was calculated', left, y);
+  nl(8); line(); nl(16); doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(70);
+  doc.splitTextToSize(calcNote, rightX-left).forEach(ln=>{ doc.text(ln, left, y); nl(13); });
+
+  nl(18); doc.setFontSize(8); doc.setTextColor(140);
+  doc.text('Generated '+gen+'  .  Amounts in INR  .  The House Ledger', left, y);
+
+  doc.save(String(s.name||'poker').replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'-settlement.pdf');
+}
+function printReportFallback(s,sorted,transfers,totalBuyin,totalCashout,balanced,statusLabel,gen){
+  const rs=(n)=>'₹'+Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:2});
+  const rsSign=(n)=>(n>0?'+':n<0?'−':'')+rs(Math.abs(Number(n||0)));
+  const onTable=round2(totalBuyin-totalCashout);
+  const rowsHtml=sorted.map(r=>`<tr><td>${esc(r.name)}</td><td class="r">${rs(r.buyin)}</td><td class="r">${r.cashedOut?rs(r.cashout):'—'}</td><td class="r">${rsSign(r.net)}</td></tr>`).join('');
+  const tHtml=transfers.length?transfers.map(t=>`<tr><td>${esc(t.from)} pays ${esc(t.to)}</td><td class="r">${rs(t.amt)}</td></tr>`).join(''):'<tr><td colspan="2">All square — nobody owes anything.</td></tr>';
+  const w=window.open('','_blank'); if(!w){ toast('Allow pop-ups to view the report'); return; }
+  w.document.write(`<!doctype html><meta charset="utf-8"><title>Settlement Report</title>
+  <style>body{font-family:system-ui,sans-serif;color:#222;max-width:680px;margin:30px auto;padding:0 18px}h1{margin:0;font-size:22px}h2{font-size:14px;margin:24px 0 6px;border-bottom:1px solid #ccc;padding-bottom:4px}.meta{color:#666;font-size:13px}table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:6px 4px;border-bottom:1px solid #eee;text-align:left}.r{text-align:right;font-variant-numeric:tabular-nums}.note{font-size:12px;color:#555;line-height:1.5}@media print{body{margin:0}}</style>
+  <h1>The House Ledger</h1><div class="meta">Settlement Report · ${esc(s.name)} · ${fmtDate(s.created_at)} · Table ${esc(s.code)} · ${statusLabel}</div>
+  <h2>Per player</h2><table><tr><th>Player</th><th class="r">Buy-in</th><th class="r">Cash-out</th><th class="r">Net</th></tr>${rowsHtml}
+  <tr><td><b>Totals</b></td><td class="r"><b>${rs(totalBuyin)}</b></td><td class="r"><b>${rs(totalCashout)}</b></td><td class="r"></td></tr></table>
+  <div class="meta" style="margin-top:6px">${balanced?`Pot balanced — money in (${rs(totalBuyin)}) equals chips out (${rs(totalCashout)}).`:`Provisional — ${rs(onTable)} in chips not yet counted.`}</div>
+  <h2>Settle-up — fewest payments</h2><table>${tHtml}</table>
+  <h2>How this was calculated</h2><p class="note">Each player's net is the chips they cashed out minus the money they bought in. A negative net means they owe; a positive net means they're owed. To settle, the app repeatedly matches the biggest debtor with the biggest creditor — clearing everyone in the fewest possible payments. Since every rupee bought in is cashed out by someone, all nets add up to zero, so the payments balance exactly.</p>
+  <div class="meta" style="margin-top:20px">Generated ${gen} · Amounts in INR</div>
+  <script>setTimeout(()=>window.print(),300)<\/script>`);
+  w.document.close();
+}
+
+/* ---------- boot ---------- */
+function bootFromHash(){
+  const h=location.hash;
+  if(h.startsWith('#t/')){ App.view='session'; App.sessionId=h.slice(3); }
+  else if(h==='#history'){ App.view='history'; }
+  else { App.view='lobby'; }
+  render();
+}
+window.addEventListener('hashchange',()=>{
+  if(SUPA_READY && !Auth.user) return;   // ignore routing while on the sign-in screen
+  const h=location.hash;
+  if(App.unsub){App.unsub();App.unsub=null;}
+  if(h.startsWith('#t/')){App.view='session';App.sessionId=h.slice(3);}
+  else if(h==='#history'){App.view='history';App.sessionId=null;}
+  else {App.view='lobby';App.sessionId=null;}
+  render();
+});
+
+/* ---------- auth + init ----------
+   Local demo mode: no accounts, boot straight in (today's behavior).
+   Cloud mode: require sign-in; the signed-in profile auto-fills name + UPI. */
+const Auth = { user:null, profile:null };
+
+async function loadProfile(){
+  if(!Auth.user) return null;
+  Auth.isNew=false;
+  const { data } = await supa.from('profiles').select('*').eq('id',Auth.user.id).maybeSingle();
+  if(data){ Auth.profile=data; }
+  else {
+    // brand-new account: seed a profile from the Google/email metadata and flag
+    // it so first-sign-in onboarding runs even though the name auto-filled.
+    Auth.isNew=true;
+    const meta=Auth.user.user_metadata||{};
+    const guessName=(meta.full_name||meta.name||(Auth.user.email||'').split('@')[0]||'Player').trim();
+    const { data:created } = await supa.from('profiles').upsert({id:Auth.user.id,display_name:guessName}).select().single();
+    Auth.profile=created||{id:Auth.user.id,display_name:guessName,upi_id:null};
+  }
+  // seed the per-device name (used for presence + the view-only name input) if unset
+  if(Auth.profile && Auth.profile.display_name && !localStorage.getItem('poker_device_name')){
+    localStorage.setItem('poker_device_name',Auth.profile.display_name);
+  }
+  return Auth.profile;
+}
+
+async function init(){
+  if(!SUPA_READY){ bootFromHash(); return; }          // local demo: no auth gate
+  const { data:{ session } } = await supa.auth.getSession();
+  Auth.user = session ? session.user : null;
+  supa.auth.onAuthStateChange(async (_e, sess)=>{
+    const was = Auth.user && Auth.user.id;
+    Auth.user = sess ? sess.user : null;
+    const now = Auth.user && Auth.user.id;
+    // Only react to an actual identity change (sign in / sign out). The
+    // INITIAL_SESSION + token-refresh events fire for the SAME user and would
+    // otherwise trigger a second concurrent render (e.g. "Recent Nights" twice).
+    if(now===was) return;
+    if(Auth.user){ await loadProfile(); bootFromHash(); if(Auth.isNew) openProfileModal(true); }
+    else { Auth.profile=null; renderSignIn(); }
+  });
+  if(Auth.user){ await loadProfile(); bootFromHash(); if(Auth.isNew) openProfileModal(true); }
+  else renderSignIn();
+}
+init();
+</script>
+</body>
+</html>
