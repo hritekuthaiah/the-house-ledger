@@ -397,6 +397,10 @@ input.amt{font-family:'JetBrains Mono',monospace;font-weight:500}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 .hidden{display:none!important}
 .footer-note{text-align:center;margin-top:40px;font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:rgba(243,234,210,.35)}
+.footer-links{margin-top:10px;letter-spacing:.1em}
+.footer-links a{color:rgba(231,205,134,.55);text-decoration:none;transition:color .2s}
+.footer-links a:hover{color:var(--gold-soft)}
+.footer-links .dot{margin:0 8px;color:rgba(243,234,210,.28)}
 </style>
 </head>
 <body>
@@ -411,7 +415,14 @@ input.amt{font-family:'JetBrains Mono',monospace;font-weight:500}
 
   <main id="app"></main>
 
-  <div class="footer-note">Deal honest · Settle clean</div>
+  <div class="footer-note">
+    <div>Deal honest · Settle clean</div>
+    <div class="footer-links">
+      <a href="/privacy.html">Privacy</a>
+      <span class="dot">·</span>
+      <a href="/terms.html">Terms</a>
+    </div>
+  </div>
 </div>
 
 <!-- modal mount -->
