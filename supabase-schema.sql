@@ -377,3 +377,25 @@ alter table sessions drop column if exists host_pin;
 --  counting are transient (client-side) — only the resulting cash-out is saved.
 -- =====================================================================
 alter table sessions add column if not exists chip_config jsonb;
+
+-- =====================================================================
+--  MIGRATION (2026-06-30) — restrict profiles read to co-members
+--  profiles_read was `using (true)`, so ANY caller with the public anon key
+--  could scrape every user's display_name + upi_id with no sign-in and no
+--  shared table. Tighten to: your own profile, or someone you share at least
+--  one session with. shares_session() is SECURITY DEFINER (bypasses
+--  session_members RLS → no policy recursion), mirroring is_member/can_edit.
+--  Defined here (not in the base profiles block above) because it references
+--  session_members, which is created by the Stage 2 migration further up.
+-- =====================================================================
+create or replace function shares_session(other uuid)
+returns boolean language sql security definer set search_path = public stable as $$
+  select exists (
+    select 1 from session_members a
+    join session_members b on a.session_id = b.session_id
+    where a.user_id = auth.uid() and b.user_id = other
+  );
+$$;
+drop policy if exists "profiles_read" on profiles;
+create policy "profiles_read" on profiles for select
+  using ( auth.uid() = id or shares_session(id) );
